@@ -1,8 +1,8 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Event, Workshop, Rating
-from .serializers import EventSerializer, WorkshopSerializer, RatingSerializer
+from .models import Event, Workshop, Rating, Artwork, Reservation
+from .serializers import EventSerializer, WorkshopSerializer, RatingSerializer, ArtworkSerializer, ReservationSerializer, ReservationCreateSerializer
 
 @api_view(['GET', 'POST'])
 def event_list_create(request):
@@ -94,3 +94,99 @@ def event_ratings(request, event_id):
             serializer.save(event=event)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'POST'])
+def artwork_list_create(request):
+    if request.method == 'GET':
+        artworks = Artwork.objects.all()
+        serializer = ArtworkSerializer(artworks, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = ArtworkSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def artwork_detail(request, pk):
+    try:
+        artwork = Artwork.objects.get(pk=pk)
+    except Artwork.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = ArtworkSerializer(artwork)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        serializer = ArtworkSerializer(artwork, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        artwork.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+def reservation_list_create(request):
+    if request.method == 'GET':
+        reservations = Reservation.objects.all()
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = ReservationCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            # Vérifier la disponibilité de l'œuvre
+            artwork = serializer.validated_data['artwork']
+            quantity_requested = serializer.validated_data['quantity']
+
+            if artwork.quantity_available < quantity_requested:
+                return Response(
+                    {'error': 'Quantité insuffisante disponible'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Créer la réservation (elle sera en pending par défaut)
+            reservation = serializer.save()
+
+            # Retourner la réservation
+            response_serializer = ReservationSerializer(reservation)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+def reservation_detail(request, pk):
+    try:
+        reservation = Reservation.objects.get(pk=pk)
+    except Reservation.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = ReservationSerializer(reservation)
+        return Response(serializer.data)
+
+    elif request.method == 'PATCH':
+        serializer = ReservationSerializer(reservation, data=request.data, partial=True)
+        if serializer.is_valid():
+            new_reservation = serializer.save()
+
+            # Recalculer la quantité disponible de l'œuvre après tout changement de statut
+            new_reservation.artwork.update_available_quantity()
+
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        # Supprimer la réservation
+        artwork = reservation.artwork
+        reservation.delete()
+
+        # Recalculer la quantité disponible de l'œuvre
+        artwork.update_available_quantity()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
+import { ArtworkList, ArtworkCreate, ReservationList, ReservationCreate, Artwork, Reservation, ArtworkListRef, ReservationListRef } from './modules/reservations';
 
 interface Rating {
   id: number;
@@ -82,6 +83,14 @@ function App() {
     comment: ''
   });
   const [hoveredRating, setHoveredRating] = useState(0);
+
+  // États pour les réservations
+  const [showArtworkForm, setShowArtworkForm] = useState<Artwork | null>(null);
+  const [showReservationForm, setShowReservationForm] = useState<Artwork | null>(null);
+
+  // Références pour rafraîchir les listes
+  const artworkListRef = useRef<ArtworkListRef>(null);
+  const reservationListRef = useRef<ReservationListRef>(null);
 
   useEffect(() => {
     fetchEvents();
@@ -317,6 +326,153 @@ function App() {
     ));
   };
 
+  // Gestionnaires pour les réservations
+  const handleArtworkSave = async (artworkData: Omit<Artwork, 'id' | 'created_at' | 'image'> & { image: File | null }) => {
+    if (!showArtworkForm) return;
+
+    const formData = new FormData();
+    formData.append('title', artworkData.title);
+    formData.append('description', artworkData.description);
+    formData.append('quantity_available', artworkData.quantity_available.toString());
+    formData.append('price', artworkData.price);
+    if (artworkData.image) {
+      formData.append('image', artworkData.image);
+    }
+
+    const url = showArtworkForm.id
+      ? `http://127.0.0.1:8000/api/artworks/${showArtworkForm.id}/`
+      : 'http://127.0.0.1:8000/api/artworks/';
+
+    const method = showArtworkForm.id ? 'PUT' : 'POST';
+
+    try {
+      const response = await fetch(url, {
+        method: method,
+        body: formData,
+      });
+
+      if (response.ok) {
+        setShowArtworkForm(null);
+        // Rafraîchir la liste des œuvres après ajout/modification
+        artworkListRef.current?.refresh();
+      } else {
+        console.error('Erreur lors de la sauvegarde de l\'œuvre');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleArtworkEdit = (artwork: Artwork) => {
+    setShowArtworkForm(artwork);
+  };
+
+  const handleArtworkDelete = async (artworkId: number) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette œuvre ?')) {
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/artworks/${artworkId}/`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          // Rafraîchir la liste des œuvres après suppression
+          artworkListRef.current?.refresh();
+        } else {
+          console.error('Erreur lors de la suppression');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
+    }
+  };
+
+  const handleReservationSave = async (reservationData: {
+    artwork_id: number;
+    full_name: string;
+    email: string;
+    phone: string;
+    address: string;
+    quantity: number;
+    notes?: string;
+  }) => {
+    try {
+      const dataToSend = {
+        artwork: reservationData.artwork_id,
+        full_name: reservationData.full_name,
+        email: reservationData.email,
+        phone: reservationData.phone,
+        address: reservationData.address,
+        quantity: reservationData.quantity,
+        notes: reservationData.notes || ''
+      };
+
+      console.log('Données envoyées:', dataToSend);
+
+      const response = await fetch('http://127.0.0.1:8000/api/reservations/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Réservation créée:', result);
+        setShowReservationForm(null);
+        // Rafraîchir les listes après une réservation réussie
+        artworkListRef.current?.refresh();
+        reservationListRef.current?.refresh();
+      } else {
+        const errorData = await response.json();
+        console.error('Erreur lors de la réservation:', errorData);
+        alert(`Erreur lors de la réservation: ${errorData.error || 'Erreur inconnue'}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleReservationStatusChange = async (reservationId: number, status: Reservation['status']) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/reservations/${reservationId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (response.ok) {
+        // Rafraîchir les listes après changement de statut
+        artworkListRef.current?.refresh();
+        reservationListRef.current?.refresh();
+      } else {
+        console.error('Erreur lors de la mise à jour du statut');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleReservationDelete = async (reservationId: number) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette réservation ?')) {
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/reservations/${reservationId}/`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          // Rafraîchir les listes après suppression
+          artworkListRef.current?.refresh();
+          reservationListRef.current?.refresh();
+        } else {
+          console.error('Erreur lors de la suppression');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
+    }
+  };
+
   if (loading) {
     return <div className="loading">Chargement...</div>;
   }
@@ -332,6 +488,8 @@ function App() {
           <ul className="nav-menu">
             <li><a href="#events" className="nav-link">Événements</a></li>
             <li><a href="#workshops" className="nav-link">Ateliers</a></li>
+            <li><a href="#oeuvres" className="nav-link">Oeuvre</a></li>
+            <li><a href="#reservations" className="nav-link">Réservations</a></li>
             <li><a href="#about" className="nav-link">À propos</a></li>
           </ul>
         </nav>
@@ -496,7 +654,7 @@ function App() {
                       <div className="rating-section">
                         <div className="rating-display">
                           {renderStars(Math.round(event.average_rating))}
-                          <span className="rating-score">({event.average_rating.toFixed(1)})</span>
+                          <span className="rating-score">({event.average_rating ? event.average_rating.toFixed(1) : '0.0'})</span>
                         </div>
                         <button
                           className="rate-button"
@@ -764,6 +922,79 @@ function App() {
           </div>
         </section>
 
+        <section id="oeuvres" className="oeuvres-section">
+          <div className="container">
+            <div className="section-header">
+              <div className="section-title">
+                <h2>Œuvres Disponibles</h2>
+                <p>Gérez les œuvres d'art disponibles à la réservation</p>
+              </div>
+            </div>
+
+            <div className="oeuvres-management">
+              <div className="management-section">
+                <div className="section-header">
+                  <h3>Liste des Œuvres</h3>
+                  <button
+                    className="add-button secondary"
+                    onClick={() => setShowArtworkForm({} as Artwork)}
+                  >
+                    + Ajouter une œuvre
+                  </button>
+                </div>
+
+                {showArtworkForm && (
+                  <ArtworkCreate
+                    artwork={showArtworkForm.id ? showArtworkForm : undefined}
+                    onSave={handleArtworkSave}
+                    onCancel={() => setShowArtworkForm(null)}
+                  />
+                )}
+
+                <ArtworkList
+                  ref={artworkListRef}
+                  onReserve={(artwork) => setShowReservationForm(artwork)}
+                  onEdit={handleArtworkEdit}
+                  onDelete={handleArtworkDelete}
+                />
+              </div>
+            </div>
+
+            {showReservationForm && (
+              <ReservationCreate
+                artwork={showReservationForm}
+                onSave={handleReservationSave}
+                onCancel={() => setShowReservationForm(null)}
+              />
+            )}
+          </div>
+        </section>
+
+        <section id="reservations" className="reservations-section">
+          <div className="container">
+            <div className="section-header">
+              <div className="section-title">
+                <h2>Liste des Réservations</h2>
+                <p>Gérez les réservations des œuvres d'art</p>
+              </div>
+            </div>
+
+            <div className="reservations-management">
+              <div className="management-section">
+                <div className="section-header">
+                  <h3>Réservations</h3>
+                </div>
+
+                <ReservationList
+                  ref={reservationListRef}
+                  onStatusChange={handleReservationStatusChange}
+                  onDelete={handleReservationDelete}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="about" className="about-section">
           <div className="container">
             <div className="about-content">
@@ -804,6 +1035,8 @@ function App() {
                 <ul>
                   <li><a href="#events">Événements</a></li>
                   <li><a href="#workshops">Ateliers</a></li>
+                  <li><a href="#oeuvres">Oeuvre</a></li>
+                  <li><a href="#reservations">Réservations</a></li>
                   <li><a href="#about">À propos</a></li>
                 </ul>
               </div>
