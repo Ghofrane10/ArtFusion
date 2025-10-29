@@ -1,0 +1,306 @@
+/* Styles pour les formulaires de login et signup */
+
+.reservation-form-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(5px);
+}
+
+.reservation-form-container {
+  background: white;
+  border-radius: 20px;
+  padding: 3rem;
+  max-width: 550px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reservation-form-container h3 {
+  font-family: 'Playfair Display', serif;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #1a1a1a;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.form-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  padding: 0.9rem 1.2rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-family: 'Raleway', sans-serif;
+  transition: all 0.3s ease;
+  background: #fafafa;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #9C27B0;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(156, 39, 176, 0.1);
+}
+
+/* Messages d'erreur et succès */
+.error-message {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  margin: 1.5rem 0;
+  font-weight: 500;
+  text-align: center;
+  animation: shake 0.5s ease;
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+.success-message {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+.success-message h3 {
+  color: #4CAF50;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.success-message h3::before {
+  content: '✓';
+  display: inline-block;
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  border-radius: 50%;
+  line-height: 50px;
+  animation: checkmark 0.5s ease;
+}
+
+@keyframes checkmark {
+  0% {
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+.success-message p {
+  color: #666;
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+/* Exigences du mot de passe */
+.password-requirements {
+  background: #f8f9fa;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  margin: 1.5rem 0;
+  border-left: 4px solid #7C3AED;
+}
+
+.password-requirements p {
+  margin: 0 0 0.75rem 0;
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 0.9rem;
+}
+
+.password-requirements ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.password-requirements li {
+  padding: 0.5rem 0;
+  color: #666;
+  font-size: 0.9rem;
+  position: relative;
+  padding-left: 1.75rem;
+}
+
+.password-requirements li::before {
+  content: '✗';
+  position: absolute;
+  left: 0;
+  color: #ff6b6b;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+.password-requirements li.valid {
+  color: #4CAF50;
+}
+
+.password-requirements li.valid::before {
+  content: '✓';
+  color: #4CAF50;
+}
+
+/* Lien mot de passe oublié */
+.forgot-password-link {
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #7C3AED;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: all 0.3s ease;
+  text-decoration: underline;
+}
+
+.link-button:hover {
+  color: #6366F1;
+  transform: translateY(-1px);
+}
+
+.form-description {
+  text-align: center;
+  color: #666;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.form-description strong {
+  color: #7C3AED;
+  font-weight: 600;
+}
+
+/* Actions du formulaire */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #eee;
+}
+
+.form-actions button {
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 50px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+}
+
+.form-actions button[type="button"] {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.form-actions button[type="button"]:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.form-actions .submit-button {
+  background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+  color: white;
+  box-shadow: 0 5px 20px rgba(124, 58, 237, 0.3);
+}
+
+.form-actions .submit-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);
+}
+
+.form-actions .submit-button:disabled {
+  background: linear-gradient(135deg, #ccc 0%, #aaa 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .reservation-form-container {
+    padding: 2rem;
+    width: 95%;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+}
+

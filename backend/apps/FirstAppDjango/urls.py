@@ -2,6 +2,15 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('register/', views.UserCreateView.as_view(), name='user-create'),
+    path('login/', views.LoginView.as_view(), name='user-login'),
+    path('forgot-password-request/', views.PasswordResetRequestView.as_view(), name='user-forgot-password-request'),
+    path('forgot-password-confirm/', views.PasswordResetConfirmView.as_view(), name='user-forgot-password-confirm'),
+    path('profile-update/', views.ProfileUpdateView.as_view(), name='user-update-profile'),
+    path('myprofile/', views.GetMyselfAPIView.as_view(), name='user-get-my-profile'),
+
+
+
     # Événements
     path('events/', views.event_list_create, name='event-list-create'),
     path('events/<int:pk>/', views.event_detail, name='event-detail'),

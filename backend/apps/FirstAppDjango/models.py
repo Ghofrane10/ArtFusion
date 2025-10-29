@@ -1,6 +1,101 @@
 from django.db import models
+from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.utils import timezone
+import random
 
+from django.contrib.auth.base_user import BaseUserManager
+class UserManager(BaseUserManager):
+    use_in_migrations = True
+
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("The Email must be set")
+        email = self.normalize_email(email)
+        first_name = extra_fields.get('first_name')
+        if not first_name:
+            raise ValueError("The first_name field must be set")
+
+        last_name = extra_fields.get('last_name')
+        if not last_name:
+            raise ValueError("The last_name field must be set")
+
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('category', 'Admin')
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+      
+        return self.create_user(email, password, **extra_fields)
 # Create your models here.
+class User(AbstractUser):
+    username = None 
+    email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    ROLE_CHOICES = [
+        ('Visiteur', 'Visiteur'),   
+        ('Admin', 'Admin'),
+             
+
+    ]
+    category = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    is_staff = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
+
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+    
+    email_active = models.BooleanField(default=False)
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['first_name', 'last_name', 'category']
+    objects = UserManager()
+    def save(self, *args, **kwargs):
+            valid_roles = [choice[0] for choice in self.ROLE_CHOICES]
+            if self.email:
+                   self.email = self.email.lower()
+                   
+            if self.category not in valid_roles:
+                raise ValueError(f"Category must be one of {valid_roles}")
+
+           
+            super().save(*args, **kwargs)
+    def _str_(self):
+        return f"{self.first_name} {self.last_name} ({self.category})"
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=8, unique=True) 
+    created_at = models.DateTimeField(auto_now_add=True)
+    valid_until = models.DateTimeField()
+
+    def is_valid(self):
+        return timezone.now() < self.valid_until
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = self._generate_unique_token()
+        super().save(*args, **kwargs)
+
+    def _generate_unique_token(self):
+        while True:
+            token = f"{random.randint(10000000, 99999999)}"  
+            if not PasswordResetToken.objects.filter(token=token).exists():
+                return token   
+
+
 
 class Event(models.Model):
     title = models.CharField(max_length=200)
