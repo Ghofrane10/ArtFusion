@@ -9,17 +9,25 @@ class EventSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False)
     average_rating = serializers.ReadOnlyField()
     ratings = RatingSerializer(many=True, read_only=True)
+    participants_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
         fields = '__all__'
 
+    def get_participants_count(self, obj):
+        return obj.participants.count()
+
 class WorkshopSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False)
+    participants_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Workshop
         fields = '__all__'
+
+    def get_participants_count(self, obj):
+        return obj.participants.count()
 
 class ArtworkSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False)
@@ -39,6 +47,16 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reservation
         fields = ['artwork', 'full_name', 'email', 'phone', 'address', 'quantity', 'notes']
+
+class EventParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventParticipant
+        fields = '__all__'
+
+class WorkshopParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkshopParticipant
+        fields = '__all__'
 
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(help_text="User's email (login)", required=True)

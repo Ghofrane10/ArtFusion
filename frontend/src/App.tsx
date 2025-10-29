@@ -23,34 +23,36 @@ interface Rating {
 }
 
 interface Event {
-  id: number;
-  title: string;
-  description: string;
-  start_date: string;
-  end_date: string;
-  location: string;
-  image: string | null;
-  capacity: number;
-  price: string;
-  average_rating: number;
-  ratings: Rating[];
-}
+   id: number;
+   title: string;
+   description: string;
+   start_date: string;
+   end_date: string;
+   location: string;
+   image: string | null;
+   capacity: number;
+   price: string;
+   average_rating: number;
+   ratings: Rating[];
+   participants_count?: number;
+ }
 
 interface Workshop {
-  id: number;
-  title: string;
-  description: string;
-  start_date: string;
-  end_date: string;
-  location: string;
-  image: string | null;
-  capacity: number;
-  price: string;
-  level: string;
-  duration: string;
-  materials_provided: string;
-  instructor: string;
-}
+   id: number;
+   title: string;
+   description: string;
+   start_date: string;
+   end_date: string;
+   location: string;
+   image: string | null;
+   capacity: number;
+   price: string;
+   level: string;
+   duration: string;
+   materials_provided: string;
+   instructor: string;
+   participants_count?: number;
+ }
 
 function App() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -84,7 +86,7 @@ function App() {
   // Récupérer les données utilisateur
   const fetchUserData = async (token: string) => {
     try {
-      const response = await fetch("http://localhost:8000/api/myprofile/", {
+      const response = await fetch("http://127.0.0.1:8000/api/myprofile/", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -152,10 +154,34 @@ function App() {
   });
   const [hoveredRating, setHoveredRating] = useState(0);
 
+  // États pour les modals de détails
+  const [showEventModal, setShowEventModal] = useState<Event | null>(null);
+  const [showWorkshopModal, setShowWorkshopModal] = useState<Workshop | null>(null);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [workshopSummary, setWorkshopSummary] = useState<string>("");
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+
+  // États pour la génération IA
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+
+  // États pour les formulaires de participation
+  const [showParticipationForm, setShowParticipationForm] = useState<{type: 'event' | 'workshop', id: number} | null>(null);
+  const [participationForm, setParticipationForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+  });
+  const [submittingParticipation, setSubmittingParticipation] = useState(false);
+
   // États pour les réservations
   const [showArtworkForm, setShowArtworkForm] = useState<Artwork | null>(null);
   const [showReservationForm, setShowReservationForm] =
     useState<Artwork | null>(null);
+
+  // États pour le calendrier
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Références pour rafraîchir les listes
   const artworkListRef = useRef<ArtworkListRef>(null);
@@ -188,13 +214,154 @@ function App() {
     }
   };
 
+  // Fonction pour générer une description poétique avec Groq
+  const generatePoeticDescription = async (title: string) => {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer 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`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "user",
+              content: `Génère une description poétique et inspirante en français pour un événement artistique intitulé "${title}". La description doit être élégante, évocatrice et encourager la participation. Maximum 150 mots.`
+            }
+          ],
+          max_tokens: 200,
+          temperature: 0.7,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Erreur API Groq:", response.status, errorData);
+        return "";
+      }
+    } catch (error) {
+      console.error("Erreur lors de la génération de description:", error);
+      return "";
+    }
+  };
+
+  // Fonction pour générer un résumé encourageant pour les ateliers
+  const generateWorkshopSummary = async (workshop: Workshop) => {
+    setGeneratingSummary(true);
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer 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`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "user",
+              content: `Résume cet atelier artistique de manière engageante et encourageante en français. L'atelier s'intitule "${workshop.title}". Description: ${workshop.description}. Instructeur: ${workshop.instructor}. Niveau: ${workshop.level}. Durée: ${workshop.duration}. Lieu: ${workshop.location}. Prix: ${workshop.price}€. Matériel fourni: ${workshop.materials_provided}. Encourage l'utilisateur à participer et souligne les bénéfices artistiques. Maximum 200 mots.`
+            }
+          ],
+          max_tokens: 300,
+          temperature: 0.7,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWorkshopSummary(data.choices[0].message.content.trim());
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Erreur API Groq:", response.status, errorData);
+        setWorkshopSummary("Erreur lors de la génération du résumé. Veuillez réessayer.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la génération du résumé:", error);
+      setWorkshopSummary("Erreur de connexion. Veuillez vérifier votre connexion internet.");
+    }
+    setGeneratingSummary(false);
+  };
+
+  // Fonction pour générer une description dans le formulaire
+  const handleGenerateDescription = async () => {
+    setGeneratingDescription(true);
+    try {
+      const generatedDescription = await generatePoeticDescription(eventForm.title);
+      if (generatedDescription) {
+        setEventForm({ ...eventForm, description: generatedDescription });
+      } else {
+        alert("Erreur lors de la génération de la description. Veuillez réessayer.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la génération de description:", error);
+      alert("Erreur lors de la génération de la description.");
+    }
+    setGeneratingDescription(false);
+  };
+
+  // Fonction pour gérer la participation
+  const handleParticipationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showParticipationForm) return;
+
+    setSubmittingParticipation(true);
+    try {
+      const endpoint = showParticipationForm.type === 'event' ? 'event-participants' : 'workshop-participants';
+      const data = {
+        [showParticipationForm.type === 'event' ? 'event_id' : 'workshop_id']: showParticipationForm.id,
+        ...participationForm
+      };
+
+      const response = await fetch(`http://127.0.0.1:8000/api/${endpoint}/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        alert("Votre participation a été enregistrée avec succès !");
+        setShowParticipationForm(null);
+        setParticipationForm({
+          first_name: "",
+          last_name: "",
+          email: "",
+          phone: "",
+        });
+        // Rafraîchir les données pour mettre à jour le nombre de participants
+        fetchEvents();
+        fetchWorkshops();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(`Erreur lors de l'inscription: ${errorData.error || "Erreur inconnue"}`);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la participation:", error);
+      alert("Erreur de connexion. Veuillez vérifier votre connexion internet.");
+    }
+    setSubmittingParticipation(false);
+  };
+
   const handleEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      // Générer une description poétique si aucune description n'est fournie
+      let description = eventForm.description;
+      if (!description.trim()) {
+        description = await generatePoeticDescription(eventForm.title);
+      }
+
       const formData = new FormData();
       formData.append("title", eventForm.title);
-      formData.append("description", eventForm.description);
+      formData.append("description", description);
       formData.append("start_date", eventForm.start_date);
       formData.append("end_date", eventForm.end_date);
       formData.append("location", eventForm.location);
@@ -581,6 +748,57 @@ function App() {
     localStorage.removeItem("access_token");
   };
 
+  // Fonctions pour le calendrier
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+
+    // Ajouter les jours vides du début du mois
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+
+    // Ajouter tous les jours du mois
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+
+    return days;
+  };
+
+  const getEventsForDate = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const dayEvents = events.filter(event =>
+      event.start_date.startsWith(dateStr) || event.end_date.startsWith(dateStr)
+    );
+    const dayWorkshops = workshops.filter(workshop =>
+      workshop.start_date.startsWith(dateStr) || workshop.end_date.startsWith(dateStr)
+    );
+    return [...dayEvents, ...dayWorkshops];
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentDate(prevDate => {
+      const newDate = new Date(prevDate);
+      if (direction === 'prev') {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else {
+        newDate.setMonth(newDate.getMonth() + 1);
+      }
+      return newDate;
+    });
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
   if (loading) {
     return <div className="loading">Chargement...</div>;
   }
@@ -620,6 +838,24 @@ function App() {
                   </a>
                 </li>
                 <li>
+                  <button
+                    onClick={() => setShowCalendarModal(true)}
+                    className="nav-link"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "inherit",
+                      cursor: "pointer",
+                      padding: "0.5rem 0",
+                      fontSize: "0.95rem",
+                      fontWeight: 500,
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    📅 Calendrier
+                  </button>
+                </li>
+                <li>
                   <a href="#about" className="nav-link">
                     À propos
                   </a>
@@ -631,6 +867,24 @@ function App() {
             ) : (
               // Liens affichés quand l'utilisateur n'est pas connecté
               <>
+                <li>
+                  <button
+                    onClick={() => setShowCalendarModal(true)}
+                    className="nav-link"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "inherit",
+                      cursor: "pointer",
+                      padding: "0.5rem 0",
+                      fontSize: "0.95rem",
+                      fontWeight: 500,
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    📅 Calendrier
+                  </button>
+                </li>
                 <li>
                   <a href="#about" className="nav-link">
                     À propos
@@ -728,16 +982,26 @@ function App() {
                     </div>
                     <div className="form-group">
                       <label>Description:</label>
-                      <textarea
-                        value={eventForm.description}
-                        onChange={(e) =>
-                          setEventForm({
-                            ...eventForm,
-                            description: e.target.value,
-                          })
-                        }
-                        required
-                      />
+                      <div className="description-input-group">
+                        <textarea
+                          value={eventForm.description}
+                          onChange={(e) =>
+                            setEventForm({
+                              ...eventForm,
+                              description: e.target.value,
+                            })
+                          }
+                          placeholder="Décrivez votre événement ou laissez l'IA le faire pour vous..."
+                        />
+                        <button
+                          type="button"
+                          className="generate-ai-button"
+                          onClick={handleGenerateDescription}
+                          disabled={generatingDescription}
+                        >
+                          {generatingDescription ? "⏳ Génération..." : "🤖 Générer avec IA"}
+                        </button>
+                      </div>
                     </div>
                     <div className="form-row">
                       <div className="form-group">
@@ -843,7 +1107,18 @@ function App() {
 
                 <div className="events-grid">
                   {events.map((event) => (
-                    <div key={event.id} className="event-card">
+                    <div
+                      key={event.id}
+                      className="event-card"
+                      onClick={(e) => {
+                        // Empêcher l'ouverture du modal si on clique sur les boutons edit/delete
+                        if ((e.target as HTMLElement).closest('.card-button')) {
+                          return;
+                        }
+                        setShowEventModal(event);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
                       <div className="card-image">
                         {event.image ? (
                           <img
@@ -859,23 +1134,10 @@ function App() {
                       </div>
                       <div className="card-content">
                         <h3>{event.title}</h3>
-                        <p className="card-description">{event.description}</p>
                         <div className="card-details">
-                          <div className="detail-item">
-                            <span className="detail-icon">📅</span>
-                            <span>
-                              {new Date(event.start_date).toLocaleDateString(
-                                "fr-FR"
-                              )}
-                            </span>
-                          </div>
                           <div className="detail-item">
                             <span className="detail-icon">📍</span>
                             <span>{event.location}</span>
-                          </div>
-                          <div className="detail-item">
-                            <span className="detail-icon">👥</span>
-                            <span>{event.capacity} places</span>
                           </div>
                         </div>
                         <div className="card-footer">
@@ -901,20 +1163,20 @@ function App() {
                               ⭐ Noter
                             </button>
                           </div>
-                          <div className="card-actions">
-                            <button
-                              className="card-button edit"
-                              onClick={() => handleEditEvent(event)}
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="card-button delete"
-                              onClick={() => handleDeleteEvent(event.id)}
-                            >
-                              🗑️
-                            </button>
-                          </div>
+                        </div>
+                        <div className="card-actions">
+                          <button
+                            className="card-button edit"
+                            onClick={() => handleEditEvent(event)}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            className="card-button delete"
+                            onClick={() => handleDeleteEvent(event.id)}
+                          >
+                            🗑️
+                          </button>
                         </div>
 
                         {showRatingForm === event.id && (
@@ -1224,7 +1486,18 @@ function App() {
 
                 <div className="workshops-grid">
                   {workshops.map((workshop) => (
-                    <div key={workshop.id} className="workshop-card">
+                    <div
+                      key={workshop.id}
+                      className="workshop-card"
+                      onClick={(e) => {
+                        // Empêcher l'ouverture du modal si on clique sur les boutons edit/delete
+                        if ((e.target as HTMLElement).closest('.card-button')) {
+                          return;
+                        }
+                        setShowWorkshopModal(workshop);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
                       <div className="card-image">
                         {workshop.image ? (
                           <img
@@ -1240,47 +1513,28 @@ function App() {
                       </div>
                       <div className="card-content">
                         <h3>{workshop.title}</h3>
-                        <p className="card-description">
-                          {workshop.description}
-                        </p>
                         <div className="card-details">
-                          <div className="detail-item">
-                            <span className="detail-icon">📅</span>
-                            <span>
-                              {new Date(workshop.start_date).toLocaleDateString(
-                                "fr-FR"
-                              )}
-                            </span>
-                          </div>
                           <div className="detail-item">
                             <span className="detail-icon">📍</span>
                             <span>{workshop.location}</span>
                           </div>
-                          <div className="detail-item">
-                            <span className="detail-icon">👨‍🎨</span>
-                            <span>{workshop.instructor}</span>
-                          </div>
-                          <div className="detail-item">
-                            <span className="detail-icon">📊</span>
-                            <span>Niveau {workshop.level}</span>
-                          </div>
                         </div>
                         <div className="card-footer">
                           <span className="price">{workshop.price} €</span>
-                          <div className="card-actions">
-                            <button
-                              className="card-button edit"
-                              onClick={() => handleEditWorkshop(workshop)}
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="card-button delete"
-                              onClick={() => handleDeleteWorkshop(workshop.id)}
-                            >
-                              🗑️
-                            </button>
-                          </div>
+                        </div>
+                        <div className="card-actions">
+                          <button
+                            className="card-button edit"
+                            onClick={() => handleEditWorkshop(workshop)}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            className="card-button delete"
+                            onClick={() => handleDeleteWorkshop(workshop.id)}
+                          >
+                            🗑️
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1338,6 +1592,7 @@ function App() {
                 )}
               </div>
             </section>
+
 
             <section id="reservations" className="reservations-section">
               <div className="container">
@@ -1474,6 +1729,482 @@ function App() {
             onCancel={() => setShowForgotPasswordForm(false)}
           />
         )}
+
+        {/* Modal de détails d'événement */}
+        {showEventModal && (
+          <div className="modal-overlay" onClick={() => setShowEventModal(null)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>{showEventModal.title}</h2>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowEventModal(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                {showEventModal.image && (
+                  <div className="modal-image">
+                    <img
+                      src={`http://127.0.0.1:8000${showEventModal.image}`}
+                      alt={showEventModal.title}
+                    />
+                  </div>
+                )}
+                <div className="modal-details">
+                  <div className="detail-section">
+                    <h3>Description</h3>
+                    <p>{showEventModal.description}</p>
+                  </div>
+                  <div className="detail-section">
+                    <h3>Informations pratiques</h3>
+                    <div className="detail-grid">
+                      <div className="detail-item">
+                        <span className="detail-icon">📅</span>
+                        <div>
+                          <strong>Début:</strong>{" "}
+                          {new Date(showEventModal.start_date).toLocaleString(
+                            "fr-FR"
+                          )}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">📅</span>
+                        <div>
+                          <strong>Fin:</strong>{" "}
+                          {new Date(showEventModal.end_date).toLocaleString(
+                            "fr-FR"
+                          )}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">📍</span>
+                        <div>
+                          <strong>Lieu:</strong> {showEventModal.location}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">👥</span>
+                        <div>
+                          <strong>Capacité:</strong> {showEventModal.capacity} places
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">💰</span>
+                        <div>
+                          <strong>Prix:</strong> {showEventModal.price} €
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="detail-section">
+                    <h3>Note moyenne</h3>
+                    <div className="rating-display">
+                      {renderStars(Math.round(showEventModal.average_rating))}
+                      <span className="rating-score">
+                        ({showEventModal.average_rating
+                          ? showEventModal.average_rating.toFixed(1)
+                          : "0.0"})
+                      </span>
+                    </div>
+                  </div>
+                  {showEventModal.ratings && showEventModal.ratings.length > 0 && (
+                    <div className="detail-section">
+                      <h3>Avis des participants</h3>
+                      <div className="ratings-list">
+                        {showEventModal.ratings.map((rating) => (
+                          <div key={rating.id} className="rating-item">
+                            <div className="rating-stars">
+                              {renderStars(rating.value)}
+                            </div>
+                            {rating.comment && (
+                              <p className="rating-comment">"{rating.comment}"</p>
+                            )}
+                            <small className="rating-date">
+                              {new Date(rating.created_at).toLocaleDateString("fr-FR")}
+                            </small>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <div className="modal-actions">
+                    <button
+                      className="participate-button"
+                      onClick={() => {
+                        setShowEventModal(null);
+                        setShowParticipationForm({type: 'event', id: showEventModal.id});
+                      }}
+                    >
+                      🎨 Participer ({showEventModal.participants_count || 0} participants)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal du calendrier */}
+        {showCalendarModal && (
+          <div className="modal-overlay" onClick={() => setShowCalendarModal(false)}>
+            <div className="modal-content calendar-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>📅 Calendrier des Événements</h2>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowCalendarModal(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="calendar-container">
+                  <div className="calendar-header">
+                    <button
+                      className="calendar-nav-button"
+                      onClick={() => navigateMonth('prev')}
+                    >
+                      ‹ Précédent
+                    </button>
+                    <h3 className="calendar-title">
+                      {currentDate.toLocaleDateString('fr-FR', {
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </h3>
+                    <button
+                      className="calendar-nav-button"
+                      onClick={() => navigateMonth('next')}
+                    >
+                      Suivant ›
+                    </button>
+                    <button
+                      className="calendar-today-button"
+                      onClick={goToToday}
+                    >
+                      Aujourd'hui
+                    </button>
+                  </div>
+
+                  <div className="calendar-grid">
+                    {/* En-têtes des jours */}
+                    {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => (
+                      <div key={day} className="calendar-day-header">
+                        {day}
+                      </div>
+                    ))}
+
+                    {/* Jours du mois */}
+                    {getDaysInMonth(currentDate).map((date, index) => {
+                      if (!date) {
+                        return <div key={index} className="calendar-day empty"></div>;
+                      }
+
+                      const dayEvents = getEventsForDate(date);
+                      const isToday = date.toDateString() === new Date().toDateString();
+                      const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+
+                      return (
+                        <div
+                          key={index}
+                          className={`calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
+                          onClick={() => setSelectedDate(date)}
+                        >
+                          <div className="day-number">{date.getDate()}</div>
+                          <div className="day-events">
+                            {dayEvents.slice(0, 2).map((event, eventIndex) => (
+                              <div
+                                key={eventIndex}
+                                className={`day-event ${'average_rating' in event ? 'event' : 'workshop'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowCalendarModal(false); // Fermer le modal calendrier
+                                  if ('average_rating' in event) {
+                                    setShowEventModal(event as Event);
+                                  } else {
+                                    setShowWorkshopModal(event as Workshop);
+                                  }
+                                }}
+                              >
+                                <span className="event-title">{event.title}</span>
+                                <span className="event-type">
+                                  {'average_rating' in event ? 'Événement' : 'Atelier'}
+                                </span>
+                              </div>
+                            ))}
+                            {dayEvents.length > 2 && (
+                              <div className="more-events">
+                                +{dayEvents.length - 2} autres
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {selectedDate && (
+                    <div className="selected-date-details">
+                      <h4>
+                        Événements du {selectedDate.toLocaleDateString('fr-FR', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </h4>
+                      <div className="selected-date-events">
+                        {getEventsForDate(selectedDate).map((event, index) => (
+                          <div key={index} className="selected-event-item">
+                            <div className="event-info">
+                              <h5>{event.title}</h5>
+                              <p className="event-description">{event.description.slice(0, 100)}...</p>
+                              <div className="event-meta">
+                                <span className={`event-badge ${'average_rating' in event ? 'event' : 'workshop'}`}>
+                                  {'average_rating' in event ? 'Événement' : 'Atelier'}
+                                </span>
+                                <span>📍 {event.location}</span>
+                                <span>⏰ {new Date(event.start_date).toLocaleTimeString('fr-FR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}</span>
+                              </div>
+                            </div>
+                            <button
+                              className="view-details-button"
+                              onClick={() => {
+                                setShowCalendarModal(false); // Fermer le modal calendrier
+                                if ('average_rating' in event) {
+                                  setShowEventModal(event as Event);
+                                } else {
+                                  setShowWorkshopModal(event as Workshop);
+                                }
+                              }}
+                            >
+                              Voir détails
+                            </button>
+                          </div>
+                        ))}
+                        {getEventsForDate(selectedDate).length === 0 && (
+                          <p className="no-events">Aucun événement prévu ce jour.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de participation */}
+        {showParticipationForm && (
+          <div className="modal-overlay" onClick={() => setShowParticipationForm(null)}>
+            <div className="modal-content participation-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Participer à {showParticipationForm.type === 'event' ? "l'événement" : "l'atelier"}</h2>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowParticipationForm(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <form className="participation-form" onSubmit={handleParticipationSubmit}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Prénom:</label>
+                    <input
+                      type="text"
+                      value={participationForm.first_name}
+                      onChange={(e) =>
+                        setParticipationForm({ ...participationForm, first_name: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Nom:</label>
+                    <input
+                      type="text"
+                      value={participationForm.last_name}
+                      onChange={(e) =>
+                        setParticipationForm({ ...participationForm, last_name: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Email:</label>
+                  <input
+                    type="email"
+                    value={participationForm.email}
+                    onChange={(e) =>
+                      setParticipationForm({ ...participationForm, email: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Téléphone:</label>
+                  <input
+                    type="tel"
+                    value={participationForm.phone}
+                    onChange={(e) =>
+                      setParticipationForm({ ...participationForm, phone: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowParticipationForm(null)}
+                    className="cancel-button"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="submit-participation-button"
+                    disabled={submittingParticipation}
+                  >
+                    {submittingParticipation ? "Inscription en cours..." : "S'inscrire"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de détails d'atelier */}
+        {showWorkshopModal && (
+          <div className="modal-overlay" onClick={() => setShowWorkshopModal(null)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>{showWorkshopModal.title}</h2>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowWorkshopModal(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                {showWorkshopModal.image && (
+                  <div className="modal-image">
+                    <img
+                      src={`http://127.0.0.1:8000${showWorkshopModal.image}`}
+                      alt={showWorkshopModal.title}
+                    />
+                  </div>
+                )}
+                <div className="modal-details">
+                  <div className="detail-section">
+                    <h3>Description</h3>
+                    <p>{showWorkshopModal.description}</p>
+                  </div>
+                  <div className="detail-section">
+                    <h3>Informations pratiques</h3>
+                    <div className="detail-grid">
+                      <div className="detail-item">
+                        <span className="detail-icon">📅</span>
+                        <div>
+                          <strong>Début:</strong>{" "}
+                          {new Date(showWorkshopModal.start_date).toLocaleString(
+                            "fr-FR"
+                          )}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">📅</span>
+                        <div>
+                          <strong>Fin:</strong>{" "}
+                          {new Date(showWorkshopModal.end_date).toLocaleString(
+                            "fr-FR"
+                          )}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">📍</span>
+                        <div>
+                          <strong>Lieu:</strong> {showWorkshopModal.location}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">👨‍🎨</span>
+                        <div>
+                          <strong>Instructeur:</strong> {showWorkshopModal.instructor}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">📊</span>
+                        <div>
+                          <strong>Niveau:</strong> {showWorkshopModal.level}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">⏱️</span>
+                        <div>
+                          <strong>Durée:</strong> {showWorkshopModal.duration}
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">👥</span>
+                        <div>
+                          <strong>Capacité:</strong> {showWorkshopModal.capacity} places
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-icon">💰</span>
+                        <div>
+                          <strong>Prix:</strong> {showWorkshopModal.price} €
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {showWorkshopModal.materials_provided && (
+                    <div className="detail-section">
+                      <h3>Matériel fourni</h3>
+                      <p>{showWorkshopModal.materials_provided}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <div className="modal-actions">
+                    <button
+                      className="participate-button"
+                      onClick={() => {
+                        setShowWorkshopModal(null);
+                        setShowParticipationForm({type: 'workshop', id: showWorkshopModal.id});
+                      }}
+                    >
+                      🎨 Participer ({showWorkshopModal.participants_count || 0} participants)
+                    </button>
+                    <button
+                      className="summary-ai-button"
+                      onClick={() => generateWorkshopSummary(showWorkshopModal)}
+                      disabled={generatingSummary}
+                    >
+                      {generatingSummary ? "⏳ Génération..." : "🤖 SummaryAI"}
+                    </button>
+                  </div>
+                  {workshopSummary && (
+                    <div className="ai-summary">
+                      <h4>✨ Résumé IA</h4>
+                      <p>{workshopSummary}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <footer className="main-footer">
@@ -1501,6 +2232,20 @@ function App() {
                       </li>
                       <li>
                         <a href="#reservations">Réservations</a>
+                      </li>
+                      <li>
+                        <button
+                          onClick={() => setShowCalendarModal(true)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "inherit",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          📅 Calendrier
+                        </button>
                       </li>
                       <li>
                         <a href="#about">À propos</a>

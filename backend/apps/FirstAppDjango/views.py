@@ -1,8 +1,8 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Event, Workshop, Rating, Artwork, Reservation
-from .serializers import EventSerializer, WorkshopSerializer, RatingSerializer, ArtworkSerializer, ReservationSerializer, ReservationCreateSerializer
+from .models import Event, Workshop, Rating, Artwork, Reservation, EventParticipant, WorkshopParticipant
+from .serializers import EventSerializer, WorkshopSerializer, RatingSerializer, ArtworkSerializer, ReservationSerializer, ReservationCreateSerializer, EventParticipantSerializer, WorkshopParticipantSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status ,generics
@@ -211,6 +211,34 @@ def reservation_detail(request, pk):
         artwork.update_available_quantity()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+def event_participants(request):
+    if request.method == 'GET':
+        participants = EventParticipant.objects.all()
+        serializer = EventParticipantSerializer(participants, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = EventParticipantSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'POST'])
+def workshop_participants(request):
+    if request.method == 'GET':
+        participants = WorkshopParticipant.objects.all()
+        serializer = WorkshopParticipantSerializer(participants, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = WorkshopParticipantSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserCreateView(APIView):

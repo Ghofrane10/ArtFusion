@@ -204,3 +204,31 @@ class Workshop(models.Model):
 
     def __str__(self):
         return self.title
+
+class EventParticipant(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participants')
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['event', 'email']
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.event.title}"
+
+class WorkshopParticipant(models.Model):
+    workshop = models.ForeignKey(Workshop, on_delete=models.CASCADE, related_name='participants')
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['workshop', 'email']
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.workshop.title}"

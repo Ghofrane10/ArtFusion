@@ -20,6 +20,10 @@ urlpatterns = [
     path('workshops/', views.workshop_list_create, name='workshop-list-create'),
     path('workshops/<int:pk>/', views.workshop_detail, name='workshop-detail'),
 
+    # Participants
+    path('event-participants/', views.event_participants, name='event-participants'),
+    path('workshop-participants/', views.workshop_participants, name='workshop-participants'),
+
     # Œuvres et réservations
     path('artworks/', views.artwork_list_create, name='artwork-list-create'),
     path('artworks/<int:pk>/', views.artwork_detail, name='artwork-detail'),
