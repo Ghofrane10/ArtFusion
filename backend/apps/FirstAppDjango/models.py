@@ -98,16 +98,39 @@ class PasswordResetToken(models.Model):
 
 
 class Event(models.Model):
-    title = models.CharField(max_length=200)
-    description = models.TextField()
+    title = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) >= 3])
+    description = models.TextField(validators=[lambda x: len(x.strip()) > 0])
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
-    location = models.CharField(max_length=200)
+    location = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) > 0])
     image = models.ImageField(upload_to='events/', blank=True, null=True)
-    capacity = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    capacity = models.PositiveIntegerField(default=0, validators=[lambda x: x > 0])
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[lambda x: x >= 0])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError("La date de fin doit être après la date de début.")
+        if not self.title.strip():
+            raise ValidationError("Le titre est obligatoire.")
+        if len(self.title.strip()) < 3:
+            raise ValidationError("Le titre doit contenir au moins 3 caractères.")
+        if len(self.title.strip()) < 3:
+            raise ValidationError("Le titre doit contenir au moins 3 caractères.")
+        if not self.description.strip():
+            raise ValidationError("La description est obligatoire.")
+        if not self.location.strip():
+            raise ValidationError("Le lieu est obligatoire.")
+        if self.capacity <= 0:
+            raise ValidationError("La capacité doit être supérieure à 0.")
+        if self.price < 0:
+            raise ValidationError("Le prix ne peut pas être négatif.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()  # Appelle clean() avant sauvegarde
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title
@@ -183,24 +206,49 @@ class Rating(models.Model):
         return f"Rating {self.value} for {self.event.title}"
 
 class Workshop(models.Model):
-    title = models.CharField(max_length=200)
-    description = models.TextField()
+    title = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) >= 3])
+    description = models.TextField(validators=[lambda x: len(x.strip()) > 0])
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
-    location = models.CharField(max_length=200)
+    location = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) > 0])
     image = models.ImageField(upload_to='workshops/', blank=True, null=True)
-    capacity = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    capacity = models.PositiveIntegerField(default=0, validators=[lambda x: x > 0])
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[lambda x: x >= 0])
     level = models.CharField(max_length=50, choices=[
         ('beginner', 'Débutant'),
         ('intermediate', 'Intermédiaire'),
         ('advanced', 'Avancé')
-    ])
-    duration = models.DurationField()  # e.g., timedelta
+    ], validators=[lambda x: x in ['beginner', 'intermediate', 'advanced']])
+    duration = models.CharField(max_length=100, validators=[lambda x: len(x.strip()) > 0])  # Changé en CharField pour plus de flexibilité
     materials_provided = models.TextField(blank=True)
-    instructor = models.CharField(max_length=200)
+    instructor = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) > 0])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError("La date de fin doit être après la date de début.")
+        if not self.title.strip():
+            raise ValidationError("Le titre est obligatoire.")
+        if not self.description.strip():
+            raise ValidationError("La description est obligatoire.")
+        if not self.location.strip():
+            raise ValidationError("Le lieu est obligatoire.")
+        if self.capacity <= 0:
+            raise ValidationError("La capacité doit être supérieure à 0.")
+        if self.price < 0:
+            raise ValidationError("Le prix ne peut pas être négatif.")
+        if not self.level:
+            raise ValidationError("Le niveau est obligatoire.")
+        if not self.duration.strip():
+            raise ValidationError("La durée est obligatoire.")
+        if not self.instructor.strip():
+            raise ValidationError("L'instructeur est obligatoire.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()  # Appelle clean() avant sauvegarde
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

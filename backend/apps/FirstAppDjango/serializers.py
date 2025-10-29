@@ -18,6 +18,15 @@ class EventSerializer(serializers.ModelSerializer):
     def get_participants_count(self, obj):
         return obj.participants.count()
 
+    def validate(self, data):
+        if data.get('start_date') and data.get('end_date') and data['start_date'] >= data['end_date']:
+            raise serializers.ValidationError("La date de fin doit être après la date de début.")
+        if data.get('capacity', 0) <= 0:
+            raise serializers.ValidationError("La capacité doit être supérieure à 0.")
+        if data.get('price', 0) < 0:
+            raise serializers.ValidationError("Le prix ne peut pas être négatif.")
+        return data
+
 class WorkshopSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False)
     participants_count = serializers.SerializerMethodField()
@@ -28,6 +37,17 @@ class WorkshopSerializer(serializers.ModelSerializer):
 
     def get_participants_count(self, obj):
         return obj.participants.count()
+
+    def validate(self, data):
+        if data.get('start_date') and data.get('end_date') and data['start_date'] >= data['end_date']:
+            raise serializers.ValidationError("La date de fin doit être après la date de début.")
+        if data.get('capacity', 0) <= 0:
+            raise serializers.ValidationError("La capacité doit être supérieure à 0.")
+        if data.get('price', 0) < 0:
+            raise serializers.ValidationError("Le prix ne peut pas être négatif.")
+        if data.get('level') and data['level'] not in ['beginner', 'intermediate', 'advanced']:
+            raise serializers.ValidationError("Le niveau doit être débutant, intermédiaire ou avancé.")
+        return data
 
 class ArtworkSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False)
@@ -53,10 +73,42 @@ class EventParticipantSerializer(serializers.ModelSerializer):
         model = EventParticipant
         fields = '__all__'
 
+    def validate(self, data):
+        # Vérifier que l'événement existe
+        if not data.get('event'):
+            raise serializers.ValidationError("L'événement est obligatoire.")
+
+        # Vérifier que l'email n'est pas déjà inscrit à cet événement
+        if EventParticipant.objects.filter(event=data['event'], email=data.get('email')).exists():
+            raise serializers.ValidationError("Cet email est déjà inscrit à cet événement.")
+
+        # Vérifier que l'événement n'est pas complet
+        event = data['event']
+        if event.participants.count() >= event.capacity:
+            raise serializers.ValidationError("Cet événement est complet.")
+
+        return data
+
 class WorkshopParticipantSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkshopParticipant
         fields = '__all__'
+
+    def validate(self, data):
+        # Vérifier que l'atelier existe
+        if not data.get('workshop'):
+            raise serializers.ValidationError("L'atelier est obligatoire.")
+
+        # Vérifier que l'email n'est pas déjà inscrit à cet atelier
+        if WorkshopParticipant.objects.filter(workshop=data['workshop'], email=data.get('email')).exists():
+            raise serializers.ValidationError("Cet email est déjà inscrit à cet atelier.")
+
+        # Vérifier que l'atelier n'est pas complet
+        workshop = data['workshop']
+        if workshop.participants.count() >= workshop.capacity:
+            raise serializers.ValidationError("Cet atelier est complet.")
+
+        return data
 
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(help_text="User's email (login)", required=True)

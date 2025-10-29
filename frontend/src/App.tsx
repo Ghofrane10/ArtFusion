@@ -129,6 +129,16 @@ function App() {
     image: null as File | null,
   });
 
+  const [eventFormErrors, setEventFormErrors] = useState({
+    title: "",
+    description: "",
+    start_date: "",
+    end_date: "",
+    location: "",
+    capacity: "",
+    price: "",
+  });
+
   const [workshopForm, setWorkshopForm] = useState({
     title: "",
     description: "",
@@ -142,6 +152,20 @@ function App() {
     materials_provided: "",
     instructor: "",
     image: null as File | null,
+  });
+
+  const [workshopFormErrors, setWorkshopFormErrors] = useState({
+    title: "",
+    description: "",
+    start_date: "",
+    end_date: "",
+    location: "",
+    capacity: "",
+    price: "",
+    level: "",
+    duration: "",
+    materials_provided: "",
+    instructor: "",
   });
 
   // États pour l'édition
@@ -349,8 +373,64 @@ function App() {
     setSubmittingParticipation(false);
   };
 
+  // Fonction de validation pour les événements
+   const validateEventForm = () => {
+     const errors = {
+       title: "",
+       description: "",
+       start_date: "",
+       end_date: "",
+       location: "",
+       capacity: "",
+       price: "",
+     };
+
+     // Validation côté frontend (messages utilisateur)
+     if (!eventForm.title.trim()) {
+       errors.title = "Le titre est obligatoire";
+     } else if (eventForm.title.trim().length < 3) {
+       errors.title = "Le titre doit contenir au moins 3 caractères";
+     }
+
+     if (!eventForm.description.trim()) {
+       errors.description = "La description est obligatoire";
+     }
+
+     if (!eventForm.start_date) {
+       errors.start_date = "La date de début est obligatoire";
+     }
+
+     if (!eventForm.end_date) {
+       errors.end_date = "La date de fin est obligatoire";
+     }
+
+     if (eventForm.start_date && eventForm.end_date && new Date(eventForm.start_date) >= new Date(eventForm.end_date)) {
+       errors.end_date = "La date de fin doit être après la date de début";
+     }
+
+     if (!eventForm.location.trim()) {
+       errors.location = "Le lieu est obligatoire";
+     }
+
+     if (eventForm.capacity <= 0) {
+       errors.capacity = "La capacité doit être supérieure à 0";
+     }
+
+     if (parseFloat(eventForm.price) < 0) {
+       errors.price = "Le prix ne peut pas être négatif";
+     }
+
+     setEventFormErrors(errors);
+     return Object.values(errors).every(error => error === "");
+   };
+
   const handleEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateEventForm()) {
+      return;
+    }
+
     setSubmitting(true);
     try {
       // Générer une description poétique si aucune description n'est fournie
@@ -396,8 +476,35 @@ function App() {
           price: "0.00",
           image: null,
         });
+        setEventFormErrors({
+          title: "",
+          description: "",
+          start_date: "",
+          end_date: "",
+          location: "",
+          capacity: "",
+          price: "",
+        });
       } else {
-        console.error("Erreur lors de la sauvegarde de l'événement");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Erreur lors de la sauvegarde de l'événement:", errorData);
+
+        // Afficher les erreurs du backend
+        if (errorData.detail) {
+          alert(`Erreur: ${errorData.detail}`);
+        } else if (errorData.non_field_errors) {
+          alert(`Erreur: ${errorData.non_field_errors.join(', ')}`);
+        } else {
+          // Afficher les erreurs de champs spécifiques
+          const fieldErrors = Object.entries(errorData).map(([field, errors]) =>
+            `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`
+          ).join('\n');
+          if (fieldErrors) {
+            alert(`Erreurs de validation:\n${fieldErrors}`);
+          } else {
+            alert("Erreur lors de la sauvegarde de l'événement");
+          }
+        }
       }
     } catch (error) {
       console.error("Erreur:", error);
@@ -405,8 +512,80 @@ function App() {
     setSubmitting(false);
   };
 
+  // Fonction de validation pour les ateliers
+   const validateWorkshopForm = () => {
+     const errors = {
+       title: "",
+       description: "",
+       start_date: "",
+       end_date: "",
+       location: "",
+       capacity: "",
+       price: "",
+       level: "",
+       duration: "",
+       materials_provided: "",
+       instructor: "",
+     };
+
+     // Validation côté frontend (messages utilisateur)
+     if (!workshopForm.title.trim()) {
+       errors.title = "Le titre est obligatoire";
+     } else if (workshopForm.title.trim().length < 3) {
+       errors.title = "Le titre doit contenir au moins 3 caractères";
+     }
+
+     if (!workshopForm.description.trim()) {
+       errors.description = "La description est obligatoire";
+     }
+
+     if (!workshopForm.start_date) {
+       errors.start_date = "La date de début est obligatoire";
+     }
+
+     if (!workshopForm.end_date) {
+       errors.end_date = "La date de fin est obligatoire";
+     }
+
+     if (workshopForm.start_date && workshopForm.end_date && new Date(workshopForm.start_date) >= new Date(workshopForm.end_date)) {
+       errors.end_date = "La date de fin doit être après la date de début";
+     }
+
+     if (!workshopForm.location.trim()) {
+       errors.location = "Le lieu est obligatoire";
+     }
+
+     if (workshopForm.capacity <= 0) {
+       errors.capacity = "La capacité doit être supérieure à 0";
+     }
+
+     if (parseFloat(workshopForm.price) < 0) {
+       errors.price = "Le prix ne peut pas être négatif";
+     }
+
+     if (!workshopForm.level) {
+       errors.level = "Le niveau est obligatoire";
+     }
+
+     if (!workshopForm.duration.trim()) {
+       errors.duration = "La durée est obligatoire";
+     }
+
+     if (!workshopForm.instructor.trim()) {
+       errors.instructor = "L'instructeur est obligatoire";
+     }
+
+     setWorkshopFormErrors(errors);
+     return Object.values(errors).every(error => error === "");
+   };
+
   const handleWorkshopSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateWorkshopForm()) {
+      return;
+    }
+
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -454,8 +633,39 @@ function App() {
           instructor: "",
           image: null,
         });
+        setWorkshopFormErrors({
+          title: "",
+          description: "",
+          start_date: "",
+          end_date: "",
+          location: "",
+          capacity: "",
+          price: "",
+          level: "",
+          duration: "",
+          materials_provided: "",
+          instructor: "",
+        });
       } else {
-        console.error("Erreur lors de la sauvegarde de l'atelier");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Erreur lors de la sauvegarde de l'atelier:", errorData);
+
+        // Afficher les erreurs du backend
+        if (errorData.detail) {
+          alert(`Erreur: ${errorData.detail}`);
+        } else if (errorData.non_field_errors) {
+          alert(`Erreur: ${errorData.non_field_errors.join(', ')}`);
+        } else {
+          // Afficher les erreurs de champs spécifiques
+          const fieldErrors = Object.entries(errorData).map(([field, errors]) =>
+            `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`
+          ).join('\n');
+          if (fieldErrors) {
+            alert(`Erreurs de validation:\n${fieldErrors}`);
+          } else {
+            alert("Erreur lors de la sauvegarde de l'atelier");
+          }
+        }
       }
     } catch (error) {
       console.error("Erreur:", error);
@@ -979,6 +1189,9 @@ function App() {
                         }
                         required
                       />
+                      {eventFormErrors.title && (
+                        <div className="error-message">{eventFormErrors.title}</div>
+                      )}
                     </div>
                     <div className="form-group">
                       <label>Description:</label>
@@ -1002,6 +1215,9 @@ function App() {
                           {generatingDescription ? "⏳ Génération..." : "🤖 Générer avec IA"}
                         </button>
                       </div>
+                      {eventFormErrors.description && (
+                        <div className="error-message">{eventFormErrors.description}</div>
+                      )}
                     </div>
                     <div className="form-row">
                       <div className="form-group">
@@ -1017,6 +1233,9 @@ function App() {
                           }
                           required
                         />
+                        {eventFormErrors.start_date && (
+                          <div className="error-message">{eventFormErrors.start_date}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Date de fin:</label>
@@ -1031,6 +1250,9 @@ function App() {
                           }
                           required
                         />
+                        {eventFormErrors.end_date && (
+                          <div className="error-message">{eventFormErrors.end_date}</div>
+                        )}
                       </div>
                     </div>
                     <div className="form-row">
@@ -1047,6 +1269,9 @@ function App() {
                           }
                           required
                         />
+                        {eventFormErrors.location && (
+                          <div className="error-message">{eventFormErrors.location}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Capacité:</label>
@@ -1061,6 +1286,9 @@ function App() {
                           }
                           required
                         />
+                        {eventFormErrors.capacity && (
+                          <div className="error-message">{eventFormErrors.capacity}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Prix (€):</label>
@@ -1076,6 +1304,9 @@ function App() {
                           }
                           required
                         />
+                        {eventFormErrors.price && (
+                          <div className="error-message">{eventFormErrors.price}</div>
+                        )}
                       </div>
                     </div>
                     <div className="form-group">
@@ -1309,6 +1540,9 @@ function App() {
                         }
                         required
                       />
+                      {workshopFormErrors.title && (
+                        <div className="error-message">{workshopFormErrors.title}</div>
+                      )}
                     </div>
                     <div className="form-group">
                       <label>Description:</label>
@@ -1322,6 +1556,9 @@ function App() {
                         }
                         required
                       />
+                      {workshopFormErrors.description && (
+                        <div className="error-message">{workshopFormErrors.description}</div>
+                      )}
                     </div>
                     <div className="form-row">
                       <div className="form-group">
@@ -1337,6 +1574,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.start_date && (
+                          <div className="error-message">{workshopFormErrors.start_date}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Date de fin:</label>
@@ -1351,6 +1591,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.end_date && (
+                          <div className="error-message">{workshopFormErrors.end_date}</div>
+                        )}
                       </div>
                     </div>
                     <div className="form-row">
@@ -1367,6 +1610,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.location && (
+                          <div className="error-message">{workshopFormErrors.location}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Capacité:</label>
@@ -1381,6 +1627,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.capacity && (
+                          <div className="error-message">{workshopFormErrors.capacity}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Prix (€):</label>
@@ -1396,6 +1645,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.price && (
+                          <div className="error-message">{workshopFormErrors.price}</div>
+                        )}
                       </div>
                     </div>
                     <div className="form-row">
@@ -1414,6 +1666,9 @@ function App() {
                           <option value="intermediate">Intermédiaire</option>
                           <option value="advanced">Avancé</option>
                         </select>
+                        {workshopFormErrors.level && (
+                          <div className="error-message">{workshopFormErrors.level}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Durée:</label>
@@ -1429,6 +1684,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.duration && (
+                          <div className="error-message">{workshopFormErrors.duration}</div>
+                        )}
                       </div>
                       <div className="form-group">
                         <label>Instructeur:</label>
@@ -1443,6 +1701,9 @@ function App() {
                           }
                           required
                         />
+                        {workshopFormErrors.instructor && (
+                          <div className="error-message">{workshopFormErrors.instructor}</div>
+                        )}
                       </div>
                     </div>
                     <div className="form-group">
