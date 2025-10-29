@@ -314,7 +314,7 @@ function App() {
     try {
       const endpoint = showParticipationForm.type === 'event' ? 'event-participants' : 'workshop-participants';
       const data = {
-        [showParticipationForm.type === 'event' ? 'event_id' : 'workshop_id']: showParticipationForm.id,
+        [showParticipationForm.type === 'event' ? 'event' : 'workshop']: showParticipationForm.id,
         ...participationForm
       };
 
