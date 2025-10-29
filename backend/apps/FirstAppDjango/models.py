@@ -27,11 +27,10 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('category', 'Admin')
+        # For superuser, we'll allow any category but set admin privileges
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         
-
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
 
@@ -46,12 +45,10 @@ class User(AbstractUser):
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     ROLE_CHOICES = [
-        ('Visiteur', 'Visiteur'),   
-        ('Admin', 'Admin'),
-             
-
+        ('Visiteur', 'Visiteur'),
+        ('Artist', 'Artist'),
     ]
-    category = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    category = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Visiteur')
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
 

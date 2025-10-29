@@ -49,7 +49,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     phone = serializers.CharField(required=False, allow_blank=True, help_text="Phone number (optional)")
     
-    category = serializers.ChoiceField(choices=[('Visiteur', 'Visiteur'), ('Admin', 'Admin')], default='Visiteur', help_text="User category")
+    category = serializers.ChoiceField(choices=[('Visiteur', 'Visiteur'), ('Artist', 'Artist')], default='Visiteur', help_text="User category")
     
     class Meta:
         model = User
@@ -74,25 +74,16 @@ class UserSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = request.user if request else None
 
-        if data.get('category') == 'Admin':
-            if not user or not user.is_authenticated:
-                self._raise_error("You must be authenticated to create an Admin.")
-            if user.category != 'Admin':
-                self._raise_error("Only Admins are allowed to create other Admin users.")
+        # No privileged built-in admin role creation via API; roles are Visiteur/Artist only
         return data
 
       
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = User(**validated_data)
-        if validated_data.get('category') == 'Admin':
-           user.is_staff = True
-           user.is_superuser = True
-    
-        else:
-
-           user.is_staff = False
-           user.is_superuser = False
+        # Keep Django staff/superuser false; role is handled by category (Visiteur/Artist)
+        user.is_staff = False
+        user.is_superuser = False
               
         user.set_password(password)
         user.save()
