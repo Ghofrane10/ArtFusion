@@ -47,7 +47,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ user, onLogout }) => {
 
   const getCategoryBadge = () => {
     const badges = {
-      Admin: { label: "Administrateur", color: "#D4AF37" },
+      Artist: { label: "Artist", color: "#D4AF37" },
       Visiteur: { label: "Visiteur", color: "#6366F1" },
     };
     return badges[user.category as keyof typeof badges] || badges.Visiteur;

@@ -115,6 +115,14 @@ const SignupForm: React.FC<SignupFormProps> = ({
     }));
   };
 
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   if (success) {
     return (
       <div className="reservation-form-overlay">
@@ -180,6 +188,23 @@ const SignupForm: React.FC<SignupFormProps> = ({
               onChange={handleChange}
               placeholder="Votre numéro de téléphone"
             />
+          </div>
+
+          <div className="form-group">
+            <label>Catégorie:</label>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleSelectChange}
+              required
+            >
+              <option value="Visiteur">Visiteur</option>
+              <option value="Artist">Artist</option>
+            </select>
+            <p className="form-description" style={{ marginTop: "0.25rem" }}>
+              Visiteur: consulter et réserver. Artist: gérer œuvres, événements
+              et réservations.
+            </p>
           </div>
 
           <div className="form-row">

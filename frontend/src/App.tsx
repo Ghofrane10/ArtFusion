@@ -114,10 +114,16 @@ function App() {
   // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
     const token = localStorage.getItem("access_token");
+    console.log("Token from localStorage:", token ? "Found" : "Not found");
     if (token) {
       fetchUserData(token);
     }
   }, []);
+
+  // Debug pour voir l'état de user
+  useEffect(() => {
+    console.log("User state:", user);
+  }, [user]);
 
   // États pour les formulaires
   const [eventForm, setEventForm] = useState({
@@ -1000,8 +1006,9 @@ function App() {
 
 
   const handleLogout = () => {
-    setUser(null);
     localStorage.removeItem("access_token");
+    setUser(null);
+    window.location.hash = "#";
   };
 
   // Fonctions pour le calendrier

@@ -148,6 +148,11 @@ def event_list_create(request):
         return Response(serializer.data)
 
     elif request.method == 'POST':
+        # Only Artist can create events
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         serializer = EventSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -166,6 +171,10 @@ def event_detail(request, pk):
         return Response(serializer.data)
 
     elif request.method == 'PUT':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         serializer = EventSerializer(event, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -173,6 +182,10 @@ def event_detail(request, pk):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         event.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -239,6 +252,10 @@ def artwork_list_create(request):
         return Response(serializer.data)
 
     elif request.method == 'POST':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         serializer = ArtworkSerializer(data=request.data)
         if serializer.is_valid():
             artwork = serializer.save()
@@ -279,6 +296,10 @@ def artwork_detail(request, pk):
         return Response(serializer.data)
 
     elif request.method == 'PUT':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         serializer = ArtworkSerializer(artwork, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -286,6 +307,10 @@ def artwork_detail(request, pk):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         artwork.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -312,11 +337,19 @@ def artwork_analyze_ai(request, pk):
 @api_view(['GET', 'POST'])
 def reservation_list_create(request):
     if request.method == 'GET':
-        reservations = Reservation.objects.all()
-        serializer = ReservationSerializer(reservations, many=True)
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) == 'Artist':
+            qs = Reservation.objects.all()
+        else:
+            # Visitors cannot list all reservations
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = ReservationSerializer(qs, many=True)
         return Response(serializer.data)
 
     elif request.method == 'POST':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
         serializer = ReservationCreateSerializer(data=request.data)
         if serializer.is_valid():
             # Vérifier la disponibilité de l'œuvre
@@ -329,8 +362,10 @@ def reservation_list_create(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Créer la réservation (elle sera en pending par défaut)
-            reservation = serializer.save()
+            # Forcer l'email à celui du user connecté
+            data = serializer.validated_data
+            data['email'] = request.user.email
+            reservation = Reservation.objects.create(**data)
 
             # Envoyer l'email de confirmation avec IA après création de la réservation
             try:
@@ -519,10 +554,18 @@ def reservation_detail(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
-        serializer = ReservationSerializer(reservation)
-        return Response(serializer.data)
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) == 'Artist' or reservation.email == request.user.email:
+            serializer = ReservationSerializer(reservation)
+            return Response(serializer.data)
+        return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
     elif request.method == 'PATCH':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         serializer = ReservationSerializer(reservation, data=request.data, partial=True)
         if serializer.is_valid():
             old_status = reservation.status
@@ -538,6 +581,10 @@ def reservation_detail(request, pk):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'category', None) != 'Artist':
+            return Response({'detail': 'Forbidden: Artist only'}, status=status.HTTP_403_FORBIDDEN)
         # Supprimer la réservation
         artwork = reservation.artwork
         reservation.delete()
@@ -622,7 +669,7 @@ class LoginView(APIView):
             )
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
-        user_data = UserReadSerializer(user).data
+        user_data = UserReadSerializer(user, context={'request': request}).data
 
         return Response(
                     {
