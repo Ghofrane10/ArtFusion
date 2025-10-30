@@ -213,87 +213,64 @@ def comment_list_create(request):
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 @api_view(['POST'])
 def comment_check_moderation(request):
-    """Vérifier la modération d'un commentaire avant sauvegarde en utilisant Groq API"""
-    content = request.data.get('content', '')
+    """Utiliser uniquement Groq pour modérer un texte sans sauvegarder"""
+    content = request.data.get('content', '').strip()
 
     if not content:
         return Response({'error': 'Contenu requis'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         import os
+        import json
         from groq import Groq
+        from dotenv import load_dotenv
 
-        # Initialiser le client Groq
+        load_dotenv()
         client = Groq(api_key=os.getenv('GROQ_API_KEY'))
 
-        # Prompt pour la modération
         prompt = f"""
-        Analysez le commentaire suivant et déterminez s'il est approprié ou non.
-        Retournez uniquement un JSON avec les champs suivants :
+        Analyse ce commentaire et retourne un JSON avec :
         - status: "approved" ou "rejected"
-        - reason: explication brève si rejeté
-        - sentiment: "positive", "negative", ou "neutral"
-        - categories: liste des catégories problématiques si applicable (insulte, haine, spam, etc.)
-        - summary: résumé court du commentaire
+        - reason: courte explication si rejeté
+        - sentiment: "positive", "negative" ou "neutral"
+        - categories: liste (insulte, haine, spam, etc.)
+        - summary: résumé bref
 
         Commentaire: "{content}"
         """
 
-        # Appel à l'API Groq
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "Vous êtes un modérateur de contenu. Analysez les commentaires et retournez uniquement du JSON valide."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "Tu es un modérateur. Retourne seulement un JSON valide."},
+                {"role": "user", "content": prompt},
             ],
             temperature=0.1,
-            max_tokens=200
+            max_tokens=200,
         )
 
-        # Parser la réponse JSON
-        import json
-        result = json.loads(response.choices[0].message.content.strip())
+        raw_output = response.choices[0].message.content.strip()
+        if raw_output.startswith("```"):
+            raw_output = raw_output.strip("`").replace("json", "").strip()
+
+        result = json.loads(raw_output)
 
         return Response({
-            'status': result.get('status', 'pending'),
-            'message': result.get('reason', 'Contenu analysé'),
-            'sentiment': result.get('sentiment', 'neutral'),
-            'summary': result.get('summary', f'Commentaire de {len(content)} caractères'),
-            'categories': result.get('categories', [])
-        })
+            "status": result.get("status", "approved"),
+            "reason": result.get("reason", ""),
+            "sentiment": result.get("sentiment", "neutral"),
+            "summary": result.get("summary", f"Commentaire de {len(content)} caractères"),
+            "categories": result.get("categories", [])
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
-        # Fallback vers la modération par mots-clés
         print(f"Erreur Groq API: {e}")
-        inappropriate_words = [
-            'nul', 'nulle', 'merde', 'idiot', 'stupide', 'horrible', 'dégoût',
-            'suce', 'enculé', 'connard', 'salope', 'pute', 'bordel', 'putain',
-            'fuck', 'shit', 'asshole', 'bitch', 'damn', 'hell', 'crap'
-        ]
-
-        content_lower = content.lower()
-        found_inappropriate = [word for word in inappropriate_words if word in content_lower]
-
-        if found_inappropriate:
-            return Response({
-                'status': 'rejected',
-                'message': f'Contenu inapproprié détecté: {", ".join(found_inappropriate)}',
-                'categories': found_inappropriate,
-                'sentiment': 'negative',
-                'summary': f'Commentaire négatif ({len(content)} caractères)'
-            })
-        else:
-            return Response({
-                'status': 'approved',
-                'message': 'Contenu approprié',
-                'sentiment': 'neutral',
-                'summary': f'Commentaire de {len(content)} caractères',
-                'categories': []
-            })
-
+        return Response({
+            "error": f"Erreur API Groq: {str(e)}",
+            "status": "error"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 @api_view(['GET', 'PUT', 'DELETE'])
 def comment_detail(request, pk):
     try:

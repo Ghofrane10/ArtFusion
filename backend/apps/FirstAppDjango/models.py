@@ -1,6 +1,7 @@
 from django.db import models
-
-# Create your models here.
+import os
+import json
+from groq import Groq
 
 class Event(models.Model):
     title = models.CharField(max_length=200)
@@ -17,11 +18,12 @@ class Event(models.Model):
     def __str__(self):
         return self.title
 
+
 class Artwork(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
     quantity_available = models.PositiveIntegerField(default=1)
-    quantity_initial = models.PositiveIntegerField(default=1)  # Quantité initiale sauvegardée
+    quantity_initial = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     image = models.ImageField(upload_to='artworks/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -31,17 +33,16 @@ class Artwork(models.Model):
         return self.title
 
     def save(self, *args, **kwargs):
-        # Sauvegarder la quantité initiale lors de la première création
         if not self.pk:
             self.quantity_initial = self.quantity_available
         super().save(*args, **kwargs)
 
     def update_available_quantity(self):
-        """Recalcule la quantité disponible basée sur toutes les réservations (sauf cancelled)"""
         active_reservations = self.reservations.exclude(status='cancelled')
-        total_reserved = sum(reservation.quantity for reservation in active_reservations)
+        total_reserved = sum(r.quantity for r in active_reservations)
         self.quantity_available = self.quantity_initial - total_reserved
         self.save()
+
 
 class Reservation(models.Model):
     STATUS_CHOICES = [
@@ -68,24 +69,19 @@ class Reservation(models.Model):
     class Meta:
         ordering = ['-created_at']
 
-    @property
-    def average_rating(self):
-        ratings = self.ratings.all()
-        if ratings:
-            return sum(rating.value for rating in ratings) / len(ratings)
-        return 0
 
 class Rating(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='ratings')
-    value = models.IntegerField(choices=[(i, i) for i in range(1, 6)])  # 1-5 étoiles
+    value = models.IntegerField(choices=[(i, i) for i in range(1, 6)])
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ['event', 'created_at']  # Un rating par événement par session (simplifié)
+        unique_together = ['event', 'created_at']
 
     def __str__(self):
         return f"Rating {self.value} for {self.event.title}"
+
 
 class Workshop(models.Model):
     title = models.CharField(max_length=200)
@@ -101,7 +97,7 @@ class Workshop(models.Model):
         ('intermediate', 'Intermédiaire'),
         ('advanced', 'Avancé')
     ])
-    duration = models.DurationField()  # e.g., timedelta
+    duration = models.DurationField()
     materials_provided = models.TextField(blank=True)
     instructor = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -109,6 +105,7 @@ class Workshop(models.Model):
 
     def __str__(self):
         return self.title
+
 
 class Comment(models.Model):
     SENTIMENT_CHOICES = [
@@ -118,7 +115,7 @@ class Comment(models.Model):
     ]
 
     MODERATION_CHOICES = [
-        ('pending', 'En attente de modération'),
+        ('pending', 'En attente'),
         ('approved', 'Approuvé'),
         ('rejected', 'Rejeté'),
         ('flagged', 'Marqué pour révision'),
@@ -135,77 +132,52 @@ class Comment(models.Model):
         return f"Comment on {self.artwork.title} - {self.sentiment}"
 
     def moderate_content(self):
-        """Modère automatiquement le contenu du commentaire en utilisant Groq API"""
-        import os
-        from groq import Groq
-
+        """Modération automatique via Groq uniquement"""
         try:
-            # Initialiser le client Groq
             client = Groq(api_key=os.getenv('GROQ_API_KEY'))
 
-            # Prompt pour la modération
             prompt = f"""
-            Analysez le commentaire suivant et déterminez s'il est approprié ou non.
-            Retournez uniquement un JSON avec les champs suivants :
+            Analyse le commentaire suivant et retourne uniquement un JSON avec :
             - status: "approved" ou "rejected"
-            - reason: explication brève si rejeté
+            - reason: courte explication si rejeté
             - sentiment: "positive", "negative", ou "neutral"
-            - categories: liste des catégories problématiques si applicable (insulte, haine, spam, etc.)
+            - categories: liste (insulte, haine, spam, etc.)
 
-            Commentaire: "{self.content}"
+            Commentaire : "{self.content}"
             """
 
-            # Appel à l'API Groq
             response = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[
-                    {"role": "system", "content": "Vous êtes un modérateur de contenu. Analysez les commentaires et retournez uniquement du JSON valide."},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": "Tu es un modérateur. Retourne seulement un JSON valide."},
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.1,
-                max_tokens=200
+                max_tokens=200,
             )
 
-            # Parser la réponse JSON
-            import json
-            result = json.loads(response.choices[0].message.content.strip())
+            raw_output = response.choices[0].message.content.strip()
 
-            self.moderation_status = result.get('status', 'pending')
-            self.moderation_reason = result.get('reason', '')
+            if raw_output.startswith("```"):
+                raw_output = raw_output.strip("`").replace("json", "").strip()
 
-            # Déterminer le sentiment basé sur la réponse
-            sentiment = result.get('sentiment', 'neutral')
-            if sentiment == 'positive':
-                self.sentiment = 'satisfied'
-            elif sentiment == 'negative':
-                self.sentiment = 'not_satisfied'
+            result = json.loads(raw_output)
+
+            self.moderation_status = result.get("status", "pending")
+            self.moderation_reason = result.get("reason", "")
+            sentiment = result.get("sentiment", "neutral")
+
+            if sentiment == "positive":
+                self.sentiment = "satisfied"
+            elif sentiment == "negative":
+                self.sentiment = "not_satisfied"
             else:
-                self.sentiment = 'neutral'
+                self.sentiment = "neutral"
+
+            self.save()
 
         except Exception as e:
-            # Fallback vers la modération par mots-clés en cas d'erreur
             print(f"Erreur Groq API: {e}")
-            self._fallback_moderation()
-
-        self.save()
-
-    def _fallback_moderation(self):
-        """Modération de secours par mots-clés"""
-        inappropriate_words = [
-            'nul', 'nulle', 'merde', 'idiot', 'stupide', 'horrible', 'dégoût',
-            'suce', 'enculé', 'connard', 'salope', 'pute', 'bordel', 
-             'shit', 'asshole', 'bitch', 'damn', 'hell', 'crap'
-        ]
-
-        content_lower = self.content.lower()
-
-        found_inappropriate = []
-        for word in inappropriate_words:
-            if word in content_lower:
-                found_inappropriate.append(word)
-
-        if found_inappropriate:
-            self.moderation_status = 'rejected'
-            self.moderation_reason = f"Contenu inapproprié détecté: {', '.join(found_inappropriate)}"
-        else:
-            self.moderation_status = 'approved'
+            self.moderation_status = "error"
+            self.moderation_reason = str(e)
+            self.save()
