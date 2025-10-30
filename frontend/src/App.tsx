@@ -64,6 +64,7 @@ function App() {
   const [showWorkshopForm, setShowWorkshopForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>(''); // 'Artist' or 'Visiteur'
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showSignupForm, setShowSignupForm] = useState(false);
   const [showForgotPasswordForm, setShowForgotPasswordForm] = useState(false);
@@ -97,11 +98,13 @@ function App() {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+        setUserRole(userData.category); // Set user role
         console.log("User data loaded:", userData);
       } else {
         // Token invalide ou expiré
         localStorage.removeItem("access_token");
         setUser(null);
+        setUserRole('');
       }
     } catch (error) {
       console.error(
@@ -343,10 +346,12 @@ function App() {
         ...participationForm
       };
 
+      const token = localStorage.getItem("access_token");
       const response = await fetch(`http://127.0.0.1:8000/api/${endpoint}/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(data),
       });
@@ -432,6 +437,12 @@ function App() {
       return;
     }
 
+    // Check if user is Artist
+    if (userRole !== 'Artist') {
+      alert("Seuls les artistes peuvent créer ou modifier des événements.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       // Générer une description poétique si aucune description n'est fournie
@@ -458,8 +469,12 @@ function App() {
 
       const method = editingEvent ? "PUT" : "POST";
 
+      const token = localStorage.getItem("access_token");
       const response = await fetch(url, {
         method: method,
+        headers: token ? {
+          Authorization: `Bearer ${token}`,
+        } : {},
         body: formData,
       });
 
@@ -587,6 +602,12 @@ function App() {
       return;
     }
 
+    // Check if user is Artist
+    if (userRole !== 'Artist') {
+      alert("Seuls les artistes peuvent créer ou modifier des ateliers.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -611,8 +632,12 @@ function App() {
 
       const method = editingWorkshop ? "PUT" : "POST";
 
+      const token = localStorage.getItem("access_token");
       const response = await fetch(url, {
         method: method,
+        headers: token ? {
+          Authorization: `Bearer ${token}`,
+        } : {},
         body: formData,
       });
 
@@ -709,12 +734,22 @@ function App() {
   };
 
   const handleDeleteEvent = async (eventId: number) => {
+    // Check if user is Artist
+    if (userRole !== 'Artist') {
+      alert("Seuls les artistes peuvent supprimer des événements.");
+      return;
+    }
+
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cet événement ?")) {
       try {
+        const token = localStorage.getItem("access_token");
         const response = await fetch(
           `http://127.0.0.1:8000/api/events/${eventId}/`,
           {
             method: "DELETE",
+            headers: token ? {
+              Authorization: `Bearer ${token}`,
+            } : {},
           }
         );
         if (response.ok) {
@@ -729,12 +764,22 @@ function App() {
   };
 
   const handleDeleteWorkshop = async (workshopId: number) => {
+    // Check if user is Artist
+    if (userRole !== 'Artist') {
+      alert("Seuls les artistes peuvent supprimer des ateliers.");
+      return;
+    }
+
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cet atelier ?")) {
       try {
+        const token = localStorage.getItem("access_token");
         const response = await fetch(
           `http://127.0.0.1:8000/api/workshops/${workshopId}/`,
           {
             method: "DELETE",
+            headers: token ? {
+              Authorization: `Bearer ${token}`,
+            } : {},
           }
         );
         if (response.ok) {
@@ -751,12 +796,14 @@ function App() {
   const handleRatingSubmit = async (eventId: number, e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem("access_token");
       const response = await fetch(
         `http://127.0.0.1:8000/api/events/${eventId}/ratings/`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify(ratingForm),
         }
@@ -790,6 +837,12 @@ function App() {
   ) => {
     if (!showArtworkForm) return;
 
+    // Check if user is Artist
+    if (userRole !== 'Artist') {
+      alert("Seuls les artistes peuvent créer ou modifier des œuvres.");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("title", artworkData.title);
     formData.append("description", artworkData.description);
@@ -809,8 +862,12 @@ function App() {
     const method = showArtworkForm.id ? "PUT" : "POST";
 
     try {
+      const token = localStorage.getItem("access_token");
       const response = await fetch(url, {
         method: method,
+        headers: token ? {
+          Authorization: `Bearer ${token}`,
+        } : {},
         body: formData,
       });
 
@@ -833,12 +890,22 @@ function App() {
   };
 
   const handleArtworkDelete = async (artworkId: number) => {
+    // Check if user is Artist
+    if (userRole !== 'Artist') {
+      alert("Seuls les artistes peuvent supprimer des œuvres.");
+      return;
+    }
+
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cette œuvre ?")) {
       try {
+        const token = localStorage.getItem("access_token");
         const response = await fetch(
           `http://127.0.0.1:8000/api/artworks/${artworkId}/`,
           {
             method: "DELETE",
+            headers: token ? {
+              Authorization: `Bearer ${token}`,
+            } : {},
           }
         );
         if (response.ok) {
@@ -863,6 +930,12 @@ function App() {
     notes?: string;
   }) => {
     try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        alert("Vous devez être connecté pour effectuer une réservation.");
+        return;
+      }
+
       const dataToSend = {
         artwork: reservationData.artwork_id,
         full_name: reservationData.full_name,
@@ -879,6 +952,7 @@ function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(dataToSend),
       });
@@ -895,12 +969,13 @@ function App() {
         console.error("Erreur lors de la réservation:", errorData);
         alert(
           `Erreur lors de la réservation: ${
-            errorData.error || "Erreur inconnue"
+            errorData.detail || errorData.error || "Erreur inconnue"
           }`
         );
       }
     } catch (error) {
       console.error("Erreur:", error);
+      alert("Erreur de connexion. Veuillez vérifier votre connexion internet.");
     }
   };
 
@@ -909,12 +984,19 @@ function App() {
     status: Reservation["status"]
   ) => {
     try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        alert("Vous devez être connecté pour modifier le statut d'une réservation.");
+        return;
+      }
+
       const response = await fetch(
         `http://127.0.0.1:8000/api/reservations/${reservationId}/`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ status }),
         }
@@ -925,10 +1007,13 @@ function App() {
         artworkListRef.current?.refresh();
         reservationListRef.current?.refresh();
       } else {
-        console.error("Erreur lors de la mise à jour du statut");
+        const errorData = await response.json();
+        console.error("Erreur lors de la mise à jour du statut:", errorData);
+        alert(`Erreur lors de la mise à jour du statut: ${errorData.detail || "Erreur inconnue"}`);
       }
     } catch (error) {
       console.error("Erreur:", error);
+      alert("Erreur de connexion. Veuillez vérifier votre connexion internet.");
     }
   };
 
@@ -937,10 +1022,19 @@ function App() {
       window.confirm("Êtes-vous sûr de vouloir supprimer cette réservation ?")
     ) {
       try {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          alert("Vous devez être connecté pour supprimer une réservation.");
+          return;
+        }
+
         const response = await fetch(
           `http://127.0.0.1:8000/api/reservations/${reservationId}/`,
           {
             method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           }
         );
         if (response.ok) {
@@ -948,10 +1042,13 @@ function App() {
           artworkListRef.current?.refresh();
           reservationListRef.current?.refresh();
         } else {
-          console.error("Erreur lors de la suppression");
+          const errorData = await response.json();
+          console.error("Erreur lors de la suppression:", errorData);
+          alert(`Erreur lors de la suppression: ${errorData.detail || "Erreur inconnue"}`);
         }
       } catch (error) {
         console.error("Erreur:", error);
+        alert("Erreur de connexion. Veuillez vérifier votre connexion internet.");
       }
     }
   };
@@ -1008,6 +1105,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem("access_token");
     setUser(null);
+    setUserRole('');
     window.location.hash = "#";
   };
 
@@ -1222,12 +1320,14 @@ function App() {
                     <h2>Événements à Venir</h2>
                     <p>Découvrez nos expositions et vernissages exclusifs</p>
                   </div>
-                  <button
-                    className="add-button primary"
-                    onClick={() => setShowEventForm(!showEventForm)}
-                  >
-                    {showEventForm ? "Annuler" : "+ Ajouter un événement"}
-                  </button>
+                  {userRole === 'Artist' && (
+                    <button
+                      className="add-button primary"
+                      onClick={() => setShowEventForm(!showEventForm)}
+                    >
+                      {showEventForm ? "Annuler" : "+ Ajouter un événement"}
+                    </button>
+                  )}
                 </div>
 
                 {showEventForm && (
@@ -1449,18 +1549,22 @@ function App() {
                           </div>
                         </div>
                         <div className="card-actions">
-                          <button
-                            className="card-button edit"
-                            onClick={() => handleEditEvent(event)}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            className="card-button delete"
-                            onClick={() => handleDeleteEvent(event.id)}
-                          >
-                            🗑️
-                          </button>
+                          {userRole === 'Artist' && (
+                            <>
+                              <button
+                                className="card-button edit"
+                                onClick={() => handleEditEvent(event)}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                className="card-button delete"
+                                onClick={() => handleDeleteEvent(event.id)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
 
                         {showRatingForm === event.id && (
@@ -1570,12 +1674,14 @@ function App() {
                     <h2>Ateliers Créatifs</h2>
                     <p>Apprenez et créez avec nos artistes professionnels</p>
                   </div>
-                  <button
-                    className="add-button primary"
-                    onClick={() => setShowWorkshopForm(!showWorkshopForm)}
-                  >
-                    {showWorkshopForm ? "Annuler" : "+ Ajouter un atelier"}
-                  </button>
+                  {userRole === 'Artist' && (
+                    <button
+                      className="add-button primary"
+                      onClick={() => setShowWorkshopForm(!showWorkshopForm)}
+                    >
+                      {showWorkshopForm ? "Annuler" : "+ Ajouter un atelier"}
+                    </button>
+                  )}
                 </div>
 
                 {showWorkshopForm && (
@@ -1837,18 +1943,22 @@ function App() {
                           <span className="price">{workshop.price} €</span>
                         </div>
                         <div className="card-actions">
-                          <button
-                            className="card-button edit"
-                            onClick={() => handleEditWorkshop(workshop)}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            className="card-button delete"
-                            onClick={() => handleDeleteWorkshop(workshop.id)}
-                          >
-                            🗑️
-                          </button>
+                          {userRole === 'Artist' && (
+                            <>
+                              <button
+                                className="card-button edit"
+                                onClick={() => handleEditWorkshop(workshop)}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                className="card-button delete"
+                                onClick={() => handleDeleteWorkshop(workshop.id)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1870,12 +1980,14 @@ function App() {
                   <div className="management-section">
                     <div className="section-header">
                       <h3>Liste des Œuvres</h3>
-                      <button
-                        className="add-button secondary"
-                        onClick={() => setShowArtworkForm({} as Artwork)}
-                      >
-                        + Ajouter une œuvre
-                      </button>
+                      {userRole === 'Artist' && (
+                        <button
+                          className="add-button secondary"
+                          onClick={() => setShowArtworkForm({} as Artwork)}
+                        >
+                          + Ajouter une œuvre
+                        </button>
+                      )}
                     </div>
 
                     {showArtworkForm && (
@@ -1894,6 +2006,7 @@ function App() {
                       onEdit={handleArtworkEdit}
                       onDelete={handleArtworkDelete}
                       onAnalyzeColors={handleAnalyzeColors}
+                      userRole={userRole}
                     />
                   </div>
                 </div>
@@ -1928,6 +2041,7 @@ function App() {
                       ref={reservationListRef}
                       onStatusChange={handleReservationStatusChange}
                       onDelete={handleReservationDelete}
+                      userRole={userRole}
                     />
                   </div>
                 </div>

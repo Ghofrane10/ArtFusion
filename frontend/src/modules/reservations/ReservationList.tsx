@@ -12,6 +12,7 @@ interface ReservationListProps {
     status: Reservation["status"]
   ) => void;
   onDelete: (reservationId: number) => void;
+  userRole?: string;
 }
 
 export interface ReservationListRef {
@@ -19,13 +20,18 @@ export interface ReservationListRef {
 }
 
 const ReservationList = forwardRef<ReservationListRef, ReservationListProps>(
-  ({ onStatusChange, onDelete }, ref) => {
+  ({ onStatusChange, onDelete, userRole }, ref) => {
     const [reservations, setReservations] = useState<Reservation[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchReservations = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/reservations/");
+        const token = localStorage.getItem("access_token");
+        const response = await fetch("http://127.0.0.1:8000/api/reservations/", {
+          headers: token ? {
+            Authorization: `Bearer ${token}`,
+          } : {},
+        });
         const data = await response.json();
         setReservations(data);
       } catch (error) {
@@ -137,6 +143,7 @@ const ReservationList = forwardRef<ReservationListRef, ReservationListProps>(
                   )
                 }
                 className="status-select"
+                disabled={userRole !== 'Artist'}
               >
                 <option value="pending">En attente</option>
                 <option value="confirmed">Confirmée</option>
@@ -146,6 +153,7 @@ const ReservationList = forwardRef<ReservationListRef, ReservationListProps>(
               <button
                 className="delete-button"
                 onClick={() => onDelete(reservation.id)}
+                disabled={userRole !== 'Artist'}
               >
                 Supprimer
               </button>

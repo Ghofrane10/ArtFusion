@@ -6,13 +6,14 @@ interface ArtworkListProps {
   onEdit: (artwork: Artwork) => void;
   onDelete: (artworkId: number) => void;
   onAnalyzeColors?: (artwork: Artwork) => void;
+  userRole?: string;
 }
 
 export interface ArtworkListRef {
   refresh: () => void;
 }
 
-const ArtworkList = forwardRef<ArtworkListRef, ArtworkListProps>(({ onReserve, onEdit, onDelete, onAnalyzeColors }, ref) => {
+const ArtworkList = forwardRef<ArtworkListRef, ArtworkListProps>(({ onReserve, onEdit, onDelete, onAnalyzeColors, userRole }, ref) => {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -103,13 +104,15 @@ const ArtworkList = forwardRef<ArtworkListRef, ArtworkListProps>(({ onReserve, o
             )}
             <div className="card-footer">
               <div className="card-actions">
-                <button
-                  className="card-button reserve"
-                  onClick={() => onReserve(artwork)}
-                  disabled={artwork.quantity_available === 0}
-                >
-                  📝 Réserver
-                </button>
+                {userRole !== 'Artist' && (
+                  <button
+                    className="card-button reserve"
+                    onClick={() => onReserve(artwork)}
+                    disabled={artwork.quantity_available === 0}
+                  >
+                    📝 Réserver
+                  </button>
+                )}
                 <button className="card-button edit" onClick={() => onEdit(artwork)}>✏️</button>
                 <button className="card-button delete" onClick={() => onDelete(artwork.id)}>🗑️</button>
               </div>
