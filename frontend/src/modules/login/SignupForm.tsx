@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import "./LoginForms.css";
 
+interface UsernameSuggestion {
+  id: string;
+  text: string;
+}
+
 interface SignupFormProps {
   onSignupSuccess: () => void;
   onCancel: () => void;
@@ -13,6 +18,7 @@ interface SignupFormData {
   last_name: string;
   phone: string;
   category: string;
+  artistic_nickname?: string;
 }
 
 const SignupForm: React.FC<SignupFormProps> = ({
@@ -26,11 +32,15 @@ const SignupForm: React.FC<SignupFormProps> = ({
     last_name: "",
     phone: "",
     category: "Visiteur",
+    artistic_nickname: "",
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [usernameSuggestions, setUsernameSuggestions] = useState<UsernameSuggestion[]>([]);
+  const [generatingSuggestions, setGeneratingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +133,56 @@ const SignupForm: React.FC<SignupFormProps> = ({
     }));
   };
 
+  const generateUsernameSuggestions = async () => {
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      setError("Veuillez saisir votre prénom et nom avant de générer des suggestions.");
+      return;
+    }
+
+    setGeneratingSuggestions(true);
+    setError(null);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/ai/generate-username-suggestions/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const suggestions = data.suggestions.map((text: string, index: number) => ({
+          id: `suggestion-${index}`,
+          text: text,
+        }));
+        setUsernameSuggestions(suggestions);
+        setShowSuggestions(true);
+      } else {
+        setError(data.error || "Erreur lors de la génération des suggestions.");
+      }
+    } catch (err) {
+      console.error("Erreur:", err);
+      setError("Erreur de connexion. Veuillez réessayer.");
+    } finally {
+      setGeneratingSuggestions(false);
+    }
+  };
+
+  const selectSuggestion = (suggestion: UsernameSuggestion) => {
+    // Sauvegarder le surnom artistique sélectionné dans le formulaire
+    setFormData(prev => ({
+      ...prev,
+      artistic_nickname: suggestion.text
+    }));
+    setShowSuggestions(false);
+  };
+
   if (success) {
     return (
       <div className="reservation-form-overlay">
@@ -166,6 +226,53 @@ const SignupForm: React.FC<SignupFormProps> = ({
               />
             </div>
           </div>
+
+          {/* Bouton de génération de suggestions de surnoms */}
+          {(formData.first_name.trim() && formData.last_name.trim()) && (
+            <div className="form-group">
+              <button
+                type="button"
+                className="generate-suggestions-button"
+                onClick={generateUsernameSuggestions}
+                disabled={generatingSuggestions}
+              >
+                {generatingSuggestions ? "🤖 Génération en cours..." : "🎨 Générer des surnoms artistiques"}
+              </button>
+              <p className="form-description">
+                Laissez l'IA vous suggérer des surnoms créatifs inspirés de l'art !
+              </p>
+            </div>
+          )}
+
+          {/* Affichage des suggestions */}
+          {showSuggestions && usernameSuggestions.length > 0 && (
+            <div className="username-suggestions">
+              <h4>✨ Suggestions de surnoms artistiques :</h4>
+              <div className="suggestions-grid">
+                {usernameSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.id}
+                    type="button"
+                    className="suggestion-item"
+                    onClick={() => selectSuggestion(suggestion)}
+                    title="Cliquez pour utiliser cette suggestion"
+                  >
+                    {suggestion.text}
+                    {formData.artistic_nickname === suggestion.text && (
+                      <span className="selected-indicator"> ✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="close-suggestions-button"
+                onClick={() => setShowSuggestions(false)}
+              >
+                Fermer les suggestions
+              </button>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Email:</label>

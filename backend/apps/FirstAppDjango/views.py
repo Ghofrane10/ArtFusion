@@ -1,8 +1,8 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Event, Workshop, Rating, Artwork, Reservation, EventParticipant, WorkshopParticipant
-from .serializers import EventSerializer, WorkshopSerializer, RatingSerializer, ArtworkSerializer, ReservationSerializer, ReservationCreateSerializer, EventParticipantSerializer, WorkshopParticipantSerializer
+from .models import Event, Workshop, Rating, Artwork, Reservation, EventParticipant, WorkshopParticipant, Comment
+from .serializers import EventSerializer, WorkshopSerializer, RatingSerializer, ArtworkSerializer, ReservationSerializer, ReservationCreateSerializer, EventParticipantSerializer, WorkshopParticipantSerializer, CommentSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status ,generics
@@ -140,6 +140,7 @@ Structure suggérée :
         print(f"Erreur générale lors de l'envoi de l'email IA: {e}")
 
     print("=============================================================")
+
 @api_view(['GET', 'POST'])
 def event_list_create(request):
     if request.method == 'GET':
@@ -564,6 +565,82 @@ Encourage l'utilisateur à participer et souligne les bénéfices artistiques. M
         print(f"Erreur inattendue: {e}")
         return Response({'error': 'Erreur interne'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['POST'])
+def moderate_comment(request):
+    """Modère un commentaire via Groq et retourne {allowed, reason}."""
+    content = (request.data.get('content') or '').strip()
+    if not content:
+        return Response({'error': 'Le contenu est requis'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Charger la clé API Groq
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        groq_api_key = os.getenv('GROQ_API_KEY')
+
+        if not groq_api_key:
+            return Response({'error': 'Configuration API manquante'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        system_prompt = (
+            "Tu es un modérateur de contenu. Réponds UNIQUEMENT en JSON avec les clés 'allowed' (true/false) et 'reason'. "
+            "Considère comme inapproprié: insultes, harcèlement, propos haineux, menaces, contenu sexuel explicite, spam."
+        )
+        user_prompt = (
+            "Analyse le texte suivant et réponds uniquement en JSON: "
+            "{\"allowed\": <true|false>, \"reason\": \"...\"}.\n\nTexte:\n" + content
+        )
+
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_tokens": 150,
+                "temperature": 0,
+            },
+            timeout=30,
+        )
+
+        if response.status_code != 200:
+            print(f"Erreur API Groq moderation: {response.status_code} - {response.text}")
+            return Response({'error': "Erreur d'analyse"}, status=status.HTTP_502_BAD_GATEWAY)
+
+        data = response.json()
+        raw = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+
+        import json as pyjson
+        try:
+            parsed = pyjson.loads(raw)
+            allowed = bool(parsed.get('allowed', True))
+            reason = str(parsed.get('reason', ''))
+        except Exception:
+            lowered = raw.lower()
+            if any(k in lowered for k in ["inappropri", "insulte", "haine", "menace", "sexuel", "vulgaire", "spam", "harcel"]):
+                allowed = False
+                reason = "Contenu potentiellement inapproprié détecté."
+            else:
+                allowed = True
+                reason = "OK"
+
+        return Response({"allowed": allowed, "reason": reason})
+
+    except requests.exceptions.Timeout:
+        return Response({'error': "Timeout de l'API"}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur de requête moderation: {e}")
+        return Response({'error': 'Erreur de connexion'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except Exception as e:
+        print(f"Erreur inattendue moderation: {e}")
+        return Response({'error': 'Erreur interne'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['GET', 'PATCH', 'DELETE'])
 def reservation_detail(request, pk):
     try:
@@ -612,7 +689,13 @@ def reservation_detail(request, pk):
             artwork.update_available_quantity()
 
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+    
+@api_view(['GET'])
+def all_comments(request):
+    """Récupère tous les commentaires avec les informations des œuvres"""
+    comments = Comment.objects.select_related('artwork', 'user').all()
+    serializer = CommentSerializer(comments, many=True)
+    return Response(serializer.data)
 
 @api_view(['GET', 'POST'])
 def event_participants(request):
@@ -959,6 +1042,97 @@ class ChatbotView(APIView):
         return Response({'response': response})
 
 @api_view(['POST'])
+def generate_username_suggestions(request):
+    """Génère des suggestions de surnoms artistiques avec Groq AI"""
+    first_name = request.data.get('first_name', '').strip()
+    last_name = request.data.get('last_name', '').strip()
+
+    if not first_name or not last_name:
+        return Response({'error': 'Prénom et nom sont requis'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Charger la clé API depuis les variables d'environnement
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        groq_api_key = os.getenv('GROQ_API_KEY')
+
+        if not groq_api_key:
+            return Response({'error': 'Configuration API manquante'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Créer le prompt pour l'IA
+        prompt = f"""Génère 5 suggestions de surnoms artistiques créatifs et uniques en français pour un artiste nommé {first_name} {last_name}.
+
+Les surnoms doivent être :
+- Inspirés par l'art, la créativité, la nature ou des concepts artistiques
+- Courts et mémorables (2-4 mots maximum)
+- Originales et évocatrices
+- Adaptées à un contexte artistique contemporain
+
+Format de réponse : Liste numérotée avec seulement les surnoms, rien d'autre.
+Exemple :
+1. Peintre des Étoiles
+2. Maître des Couleurs
+3. Sculpteur de Rêves
+4. Artiste des Ombres
+5. Créateur d'Harmonie"""
+
+        # Appel à l'API Groq
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": 150,
+                "temperature": 0.8,
+            },
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            suggestions_text = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+
+            if suggestions_text:
+                # Parser les suggestions (format: "1. Surnom\n2. Surnom...")
+                suggestions = []
+                lines = suggestions_text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line and (line[0].isdigit() and line[1:3] in ['. ', ') ']):
+                        # Extraire le surnom après "1. " ou "1) "
+                        suggestion = line.split('. ', 1)[1] if '. ' in line else line.split(') ', 1)[1]
+                        suggestions.append(suggestion.strip())
+
+                # S'assurer qu'on a au moins 3 suggestions
+                suggestions = suggestions[:5] if len(suggestions) > 5 else suggestions
+
+                return Response({'suggestions': suggestions})
+            else:
+                return Response({'error': 'Réponse vide de l\'API'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            print(f"Erreur API Groq: {response.status_code} - {response.text}")
+            return Response({'error': 'Erreur lors de la génération'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Timeout de l\'API'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur de requête: {e}")
+        return Response({'error': 'Erreur de connexion'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except Exception as e:
+        print(f"Erreur inattendue: {e}")
+        return Response({'error': 'Erreur interne'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
 def test_email_configuration(request):
     """Endpoint de test pour vérifier la configuration email et Groq AI"""
     try:
@@ -1025,3 +1199,55 @@ def test_email_configuration(request):
         return Response({
             'error': f'Erreur lors du test: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET', 'POST'])
+def artwork_comments(request, artwork_id):
+    try:
+        artwork = Artwork.objects.get(pk=artwork_id)
+    except Artwork.DoesNotExist:
+        return Response({'error': 'Artwork not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        # Allow anyone to view comments
+        comments = Comment.objects.filter(artwork=artwork)
+        serializer = CommentSerializer(comments, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        serializer = CommentSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save(artwork=artwork)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def comment_detail(request, comment_id):
+    try:
+        comment = Comment.objects.get(pk=comment_id)
+    except Comment.DoesNotExist:
+        return Response({'error': 'Comment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = CommentSerializer(comment)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if comment.user != request.user:
+            return Response({'detail': 'You can only edit your own comments'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = CommentSerializer(comment, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if comment.user != request.user:
+            return Response({'detail': 'You can only delete your own comments'}, status=status.HTTP_403_FORBIDDEN)
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

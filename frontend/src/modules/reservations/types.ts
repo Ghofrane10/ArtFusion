@@ -21,3 +21,23 @@ export interface Reservation {
   created_at: string;
   notes?: string;
 }
+
+export interface User {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  category: 'Visiteur' | 'Artist';
+  phone?: string;
+  profile_picture?: string;
+  artistic_nickname?: string;
+}
+
+export interface Comment {
+  id: number;
+  artwork: number;
+  user: User;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}

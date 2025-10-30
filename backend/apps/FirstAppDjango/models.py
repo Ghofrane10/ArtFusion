@@ -54,7 +54,8 @@ class User(AbstractUser):
 
     phone = models.CharField(max_length=20, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
-    
+    artistic_nickname = models.CharField(max_length=100, null=True, blank=True)  # Surnom artistique généré par IA
+
     email_active = models.BooleanField(default=False)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name', 'category']
@@ -95,14 +96,14 @@ class PasswordResetToken(models.Model):
 
 
 class Event(models.Model):
-    title = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) >= 3])
-    description = models.TextField(validators=[lambda x: len(x.strip()) > 0])
+    title = models.CharField(max_length=200)
+    description = models.TextField()
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
-    location = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) > 0])
+    location = models.CharField(max_length=200)
     image = models.ImageField(upload_to='events/', blank=True, null=True)
-    capacity = models.PositiveIntegerField(default=0, validators=[lambda x: x > 0])
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[lambda x: x >= 0])
+    capacity = models.PositiveIntegerField(default=0)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -135,7 +136,7 @@ class Event(models.Model):
 class Artwork(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
-    quantity_available = models.PositiveIntegerField(default=1, validators=[lambda x: x >= 0])
+    quantity_available = models.PositiveIntegerField(default=1)
     quantity_initial = models.PositiveIntegerField(default=1)  # Quantité initiale sauvegardée
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     image = models.ImageField(upload_to='artworks/', blank=True, null=True)
@@ -258,22 +259,22 @@ class Rating(models.Model):
         return f"Rating {self.value} for {self.event.title}"
 
 class Workshop(models.Model):
-    title = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) >= 3])
-    description = models.TextField(validators=[lambda x: len(x.strip()) > 0])
+    title = models.CharField(max_length=200)
+    description = models.TextField()
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
-    location = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) > 0])
+    location = models.CharField(max_length=200)
     image = models.ImageField(upload_to='workshops/', blank=True, null=True)
-    capacity = models.PositiveIntegerField(default=0, validators=[lambda x: x > 0])
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[lambda x: x >= 0])
+    capacity = models.PositiveIntegerField(default=0)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     level = models.CharField(max_length=50, choices=[
         ('beginner', 'Débutant'),
         ('intermediate', 'Intermédiaire'),
         ('advanced', 'Avancé')
-    ], validators=[lambda x: x in ['beginner', 'intermediate', 'advanced']])
-    duration = models.CharField(max_length=100, validators=[lambda x: len(x.strip()) > 0])  # Changé en CharField pour plus de flexibilité
+    ])
+    duration = models.CharField(max_length=100)  # Changé en CharField pour plus de flexibilité
     materials_provided = models.TextField(blank=True)
-    instructor = models.CharField(max_length=200, validators=[lambda x: len(x.strip()) > 0])
+    instructor = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -332,3 +333,16 @@ class WorkshopParticipant(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.workshop.title}"
+
+class Comment(models.Model):
+    artwork = models.ForeignKey(Artwork, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Comment by {self.user.first_name} {self.user.last_name} on {self.artwork.title}"

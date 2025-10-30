@@ -28,6 +28,9 @@ urlpatterns = [
     path('artworks/', views.artwork_list_create, name='artwork-list-create'),
     path('artworks/<int:pk>/', views.artwork_detail, name='artwork-detail'),
     path('artworks/<int:pk>/analyze/', views.analyze_artwork_colors, name='artwork-analyze-colors'),
+    path('artworks/<int:artwork_id>/comments/', views.artwork_comments, name='artwork-comments'),
+    path('comments/', views.all_comments, name='all-comments'),
+    path('comments/<int:comment_id>/', views.comment_detail, name='comment-detail'),
     path('reservations/', views.reservation_list_create, name='reservation-list-create'),
     path('reservations/<int:pk>/', views.reservation_detail, name='reservation-detail'),
 
@@ -37,6 +40,8 @@ urlpatterns = [
     # IA - Génération de contenu
     path('ai/generate-event-description/', views.generate_event_description, name='generate-event-description'),
     path('ai/generate-workshop-summary/', views.generate_workshop_summary, name='generate-workshop-summary'),
+    path('ai/generate-username-suggestions/', views.generate_username_suggestions, name='generate-username-suggestions'),
+    path('ai/moderate-comment/', views.moderate_comment, name='moderate-comment'),
     
     # Test - Configuration
     path('test/email-config/', views.test_email_configuration, name='test-email-config'),

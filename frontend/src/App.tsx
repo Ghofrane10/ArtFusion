@@ -5,8 +5,12 @@ import {
   ArtworkCreate,
   ReservationList,
   ReservationCreate,
+  CommentSection,
+  CommentManager,
   Artwork,
   Reservation,
+  Comment,
+  User,
   ArtworkListRef,
   ReservationListRef,
 } from "./modules/reservations";
@@ -79,6 +83,9 @@ function App() {
     setShowLoginForm(false);
     localStorage.setItem("access_token", token);
     console.log("User logged in:", userData);
+    if (userData && userData.id) {
+      localStorage.setItem("user_id", String(userData.id));
+    }
   };
 
   const handleForgotPasswordSuccess = () => {
@@ -100,9 +107,13 @@ function App() {
         setUser(userData);
         setUserRole(userData.category); // Set user role
         console.log("User data loaded:", userData);
+        if (userData && userData.id) {
+          localStorage.setItem("user_id", String(userData.id));
+        }
       } else {
         // Token invalide ou expiré
         localStorage.removeItem("access_token");
+        localStorage.removeItem("user_id");
         setUser(null);
         setUserRole('');
       }
@@ -225,6 +236,9 @@ function App() {
   // États pour la modal d'analyse des couleurs
   const [showColorModal, setShowColorModal] = useState(false);
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
+
+  // États pour la gestion des commentaires
+  const [showCommentManager, setShowCommentManager] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -1200,6 +1214,24 @@ function App() {
                 </li>
                 <li>
                   <button
+                    onClick={() => setShowCommentManager(true)}
+                    className="nav-link"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "inherit",
+                      cursor: "pointer",
+                      padding: "0.5rem 0",
+                      fontSize: "0.95rem",
+                      fontWeight: 500,
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    💬 Commentaires
+                  </button>
+                </li>
+                <li>
+                  <button
                     onClick={() => setShowCalendarModal(true)}
                     className="nav-link"
                     style={{
@@ -2091,6 +2123,29 @@ function App() {
             }}
             onAnalyze={handleColorAnalysis}
           />
+        )}
+
+        {/* Comment Manager Modal */}
+        {showCommentManager && (
+          <div className="modal-overlay" onClick={() => setShowCommentManager(false)}>
+            <div className="modal-content comment-manager-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>💬 Gestion des Commentaires</h2>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowCommentManager(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                <CommentManager
+                  userRole={userRole}
+                  isAuthenticated={!!user}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         <section id="about" className="about-section">
