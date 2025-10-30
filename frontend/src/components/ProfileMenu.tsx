@@ -9,6 +9,7 @@ interface User {
   category: string;
   phone?: string;
   profile_picture?: string;
+  artistic_nickname?: string;
 }
 
 interface ProfileMenuProps {
@@ -160,6 +161,9 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ user, onLogout }) => {
             <div className="dropdown-user-info">
               <h3>
                 {user.first_name} {user.last_name}
+                {user.artistic_nickname && (
+                  <span className="artistic-nickname">"{user.artistic_nickname}"</span>
+                )}
               </h3>
               <p className="user-email">{user.email}</p>
               <span

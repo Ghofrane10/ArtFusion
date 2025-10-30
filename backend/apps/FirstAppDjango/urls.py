@@ -37,6 +37,7 @@ urlpatterns = [
     # IA - Génération de contenu
     path('ai/generate-event-description/', views.generate_event_description, name='generate-event-description'),
     path('ai/generate-workshop-summary/', views.generate_workshop_summary, name='generate-workshop-summary'),
+    path('ai/generate-username-suggestions/', views.generate_username_suggestions, name='generate-username-suggestions'),
     
     # Test - Configuration
     path('test/email-config/', views.test_email_configuration, name='test-email-config'),

@@ -54,7 +54,8 @@ class User(AbstractUser):
 
     phone = models.CharField(max_length=20, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
-    
+    artistic_nickname = models.CharField(max_length=100, null=True, blank=True)  # Surnom artistique généré par IA
+
     email_active = models.BooleanField(default=False)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name', 'category']

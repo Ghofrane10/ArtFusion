@@ -959,6 +959,97 @@ class ChatbotView(APIView):
         return Response({'response': response})
 
 @api_view(['POST'])
+def generate_username_suggestions(request):
+    """Génère des suggestions de surnoms artistiques avec Groq AI"""
+    first_name = request.data.get('first_name', '').strip()
+    last_name = request.data.get('last_name', '').strip()
+
+    if not first_name or not last_name:
+        return Response({'error': 'Prénom et nom sont requis'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Charger la clé API depuis les variables d'environnement
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        groq_api_key = os.getenv('GROQ_API_KEY')
+
+        if not groq_api_key:
+            return Response({'error': 'Configuration API manquante'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Créer le prompt pour l'IA
+        prompt = f"""Génère 5 suggestions de surnoms artistiques créatifs et uniques en français pour un artiste nommé {first_name} {last_name}.
+
+Les surnoms doivent être :
+- Inspirés par l'art, la créativité, la nature ou des concepts artistiques
+- Courts et mémorables (2-4 mots maximum)
+- Originales et évocatrices
+- Adaptées à un contexte artistique contemporain
+
+Format de réponse : Liste numérotée avec seulement les surnoms, rien d'autre.
+Exemple :
+1. Peintre des Étoiles
+2. Maître des Couleurs
+3. Sculpteur de Rêves
+4. Artiste des Ombres
+5. Créateur d'Harmonie"""
+
+        # Appel à l'API Groq
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": 150,
+                "temperature": 0.8,
+            },
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            suggestions_text = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+
+            if suggestions_text:
+                # Parser les suggestions (format: "1. Surnom\n2. Surnom...")
+                suggestions = []
+                lines = suggestions_text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line and (line[0].isdigit() and line[1:3] in ['. ', ') ']):
+                        # Extraire le surnom après "1. " ou "1) "
+                        suggestion = line.split('. ', 1)[1] if '. ' in line else line.split(') ', 1)[1]
+                        suggestions.append(suggestion.strip())
+
+                # S'assurer qu'on a au moins 3 suggestions
+                suggestions = suggestions[:5] if len(suggestions) > 5 else suggestions
+
+                return Response({'suggestions': suggestions})
+            else:
+                return Response({'error': 'Réponse vide de l\'API'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            print(f"Erreur API Groq: {response.status_code} - {response.text}")
+            return Response({'error': 'Erreur lors de la génération'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Timeout de l\'API'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur de requête: {e}")
+        return Response({'error': 'Erreur de connexion'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except Exception as e:
+        print(f"Erreur inattendue: {e}")
+        return Response({'error': 'Erreur interne'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
 def test_email_configuration(request):
     """Endpoint de test pour vérifier la configuration email et Groq AI"""
     try:
