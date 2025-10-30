@@ -27,6 +27,119 @@ from datetime import timedelta
 import requests
 import os
 import wikipediaapi
+from dotenv import load_dotenv
+from pathlib import Path
+
+def send_ai_confirmation_email(reservation):
+    """Envoie un email de confirmation personnalisé généré par IA après une réservation"""
+    print("=============================================================")
+    print("DEBUT: Envoi email de confirmation AI")
+    print(f"Email destinataire: {reservation.email}")
+    print(f"Nom: {reservation.full_name}")
+
+    try:
+        # Charger la clé API depuis les variables d'environnement
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        groq_api_key = os.getenv('GROQ_API_KEY')
+
+        if not groq_api_key:
+            print("Cle API Groq non trouvee")
+            return
+
+        print("Cle API Groq trouvee")
+
+        # Préparer les données pour le prompt
+        reservation_data = {
+            'client_name': reservation.full_name,
+            'artwork_title': reservation.artwork.title,
+            'artwork_description': reservation.artwork.description[:200] + "..." if len(reservation.artwork.description) > 200 else reservation.artwork.description,
+            'quantity': reservation.quantity,
+            'total_price': float(reservation.artwork.price) * reservation.quantity,
+            'status': reservation.get_status_display(),
+            'reservation_date': reservation.created_at.strftime('%d/%m/%Y à %H:%M'),
+        }
+
+        # Créer le prompt pour l'IA
+        prompt = f"""Génère un email de confirmation professionnel et chaleureux en français pour une réservation d'œuvre d'art.
+
+Informations de la réservation :
+- Nom du client : {reservation_data['client_name']}
+- Œuvre réservée : {reservation_data['artwork_title']}
+- Description de l'œuvre : {reservation_data['artwork_description']}
+- Quantité : {reservation_data['quantity']}
+- Prix total : {reservation_data['total_price']}€
+- Statut : {reservation_data['status']}
+- Date de réservation : {reservation_data['reservation_date']}
+
+L'email doit :
+1. Commencer par une salutation personnalisée
+2. Confirmer les détails de la réservation
+3. Exprimer l'enthousiasme pour l'intérêt porté à l'œuvre
+4. Mentionner les prochaines étapes (confirmation, paiement, livraison)
+5. Terminer par des coordonnées de contact et une signature professionnelle
+6. Être écrit en français
+7. Être chaleureux et professionnel
+8. Ne pas dépasser 400 mots
+
+Structure suggérée :
+- Salutation
+- Confirmation de la réservation
+- Détails de l'œuvre
+- Prochaines étapes
+- Contact et signature"""
+
+        # Appel à l'API Groq
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": 600,
+                "temperature": 0.7,
+            },
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            email_content = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+
+            if email_content:
+                print("API Groq a repondu avec succes")
+                print(f"Email genere par IA ({len(email_content)} caracteres)")
+
+                # Envoyer l'email
+                try:
+                    send_mail(
+                        subject=f'Confirmation de réservation - {reservation.artwork.title}',
+                        message=email_content,
+                        from_email=settings.EMAIL_HOST_USER,
+                        recipient_list=[reservation.email],
+                        fail_silently=False
+                    )
+                    print("Email envoyé avec succès")
+                except Exception as email_error:
+                    print(f"Erreur lors de l'envoi de l'email: {email_error}")
+            else:
+                print("Contenu d'email vide généré par l'IA")
+        else:
+            print(f"Erreur API Groq: {response.status_code} - {response.text}")
+
+    except Exception as e:
+        print(f"Erreur générale lors de l'envoi de l'email IA: {e}")
+
+    print("=============================================================")
 @api_view(['GET', 'POST'])
 def event_list_create(request):
     if request.method == 'GET':
@@ -219,6 +332,13 @@ def reservation_list_create(request):
             # Créer la réservation (elle sera en pending par défaut)
             reservation = serializer.save()
 
+            # Envoyer l'email de confirmation avec IA après création de la réservation
+            try:
+                send_ai_confirmation_email(reservation)
+            except Exception as e:
+                print(f"Erreur lors de l'envoi de l'email de confirmation: {e}")
+                # Ne pas bloquer la création de la réservation si l'email échoue
+
             # Retourner la réservation
             response_serializer = ReservationSerializer(reservation)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -258,9 +378,138 @@ def analyze_artwork_colors(request, pk):
             'message': f'Colors analyzed for {artwork.title}'
         })
 
+@api_view(['POST'])
+def generate_event_description(request):
+    """Génère une description poétique pour un événement avec Groq AI"""
+    title = request.data.get('title', '').strip()
+
+    if not title:
+        return Response({'error': 'Le titre est requis'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Charger la clé API depuis les variables d'environnement
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        groq_api_key = os.getenv('GROQ_API_KEY')
+
+        if not groq_api_key:
+            return Response({'error': 'Configuration API manquante'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Appel à l'API Groq
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"Génère une description poétique et inspirante en français pour un événement artistique intitulé \"{title}\". La description doit être élégante, évocatrice et encourager la participation. Maximum 150 mots."
+                    }
+                ],
+                "max_tokens": 200,
+                "temperature": 0.7,
+            },
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            description = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            if description:
+                return Response({'description': description})
+            else:
+                return Response({'error': 'Réponse vide de l\'API'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            print(f"Erreur API Groq: {response.status_code} - {response.text}")
+            return Response({'error': 'Erreur lors de la génération'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Timeout de l\'API'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur de requête: {e}")
+        return Response({'error': 'Erreur de connexion'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
-        print(f"Error analyzing colors: {e}")
-        return Response({'error': 'Failed to analyze colors'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        print(f"Erreur inattendue: {e}")
+        return Response({'error': 'Erreur interne'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def generate_workshop_summary(request):
+    """Génère un résumé encourageant pour un atelier avec Groq AI"""
+    workshop_data = request.data
+
+    required_fields = ['title', 'description', 'instructor', 'level', 'duration', 'location', 'price']
+    if not all(field in workshop_data and workshop_data[field] for field in required_fields):
+        return Response({'error': 'Données d\'atelier incomplètes'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Charger la clé API depuis les variables d'environnement
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        groq_api_key = os.getenv('GROQ_API_KEY')
+
+        if not groq_api_key:
+            return Response({'error': 'Configuration API manquante'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Construction du prompt détaillé
+        prompt = f"""Résume cet atelier artistique de manière engageante et encourageante en français.
+L'atelier s'intitule "{workshop_data['title']}".
+
+Description: {workshop_data['description']}
+Instructeur: {workshop_data['instructor']}
+Niveau: {workshop_data['level']}
+Durée: {workshop_data['duration']}
+Lieu: {workshop_data['location']}
+Prix: {workshop_data['price']}€
+Matériel fourni: {workshop_data.get('materials_provided', 'Non spécifié')}
+
+Encourage l'utilisateur à participer et souligne les bénéfices artistiques. Maximum 200 mots."""
+
+        # Appel à l'API Groq
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": 300,
+                "temperature": 0.7,
+            },
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            summary = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            if summary:
+                return Response({'summary': summary})
+            else:
+                return Response({'error': 'Réponse vide de l\'API'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            print(f"Erreur API Groq: {response.status_code} - {response.text}")
+            return Response({'error': 'Erreur lors de la génération'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Timeout de l\'API'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur de requête: {e}")
+        return Response({'error': 'Erreur de connexion'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except Exception as e:
+        print(f"Erreur inattendue: {e}")
+        return Response({'error': 'Erreur interne'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET', 'PATCH', 'DELETE'])
 def reservation_detail(request, pk):
@@ -276,10 +525,14 @@ def reservation_detail(request, pk):
     elif request.method == 'PATCH':
         serializer = ReservationSerializer(reservation, data=request.data, partial=True)
         if serializer.is_valid():
+            old_status = reservation.status
             new_reservation = serializer.save()
 
             # Recalculer la quantité disponible de l'œuvre après tout changement de statut
-            new_reservation.artwork.update_available_quantity()
+            try:
+                new_reservation.artwork.update_available_quantity()
+            except Exception as quantity_error:
+                print(f"Erreur lors de la mise à jour de la quantité disponible: {quantity_error}")
 
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -633,3 +886,71 @@ class ChatbotView(APIView):
                 response = random.choice(responses)
 
         return Response({'response': response})
+
+@api_view(['POST'])
+def test_email_configuration(request):
+    """Endpoint de test pour vérifier la configuration email et Groq AI"""
+    try:
+        # Charger les variables d'environnement
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        env_path = backend_dir / '.env'
+        load_dotenv(env_path)
+        
+        # Vérifier la configuration
+        groq_api_key = os.getenv('GROQ_API_KEY')
+        email_user = os.getenv('EMAIL_HOST_USER')
+        email_password = os.getenv('EMAIL_HOST_PASSWORD')
+        
+        result = {
+            'groq_configured': bool(groq_api_key),
+            'email_configured': bool(email_user and email_password),
+            'email_user': email_user if email_user else 'Non configuré',
+            'issues': []
+        }
+        
+        # Tester Groq si configuré
+        if groq_api_key:
+            try:
+                test_response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {groq_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "llama-3.1-8b-instant",
+                        "messages": [{"role": "user", "content": "Test"}],
+                        "max_tokens": 10,
+                    },
+                    timeout=10
+                )
+                result['groq_test'] = 'success' if test_response.status_code == 200 else f'error: {test_response.status_code}'
+            except Exception as e:
+                result['groq_test'] = f'error: {str(e)}'
+        else:
+            result['issues'].append('GROQ_API_KEY non configuré')
+        
+        # Tester l'email si configuré
+        if email_user and email_password:
+            test_email = request.data.get('test_email', 'ghof.ghribi11@gmail.com')
+            try:
+                send_mail(
+                    subject='Test Email Configuration - ArtFusion',
+                    message='Ceci est un email de test pour vérifier la configuration SMTP.',
+                    from_email=email_user,
+                    recipient_list=[test_email],
+                    fail_silently=False
+                )
+                result['email_test'] = 'success'
+            except Exception as e:
+                result['email_test'] = f'error: {str(e)}'
+                result['issues'].append(f'Erreur envoi email: {str(e)}')
+        else:
+            result['issues'].append('EMAIL_HOST_USER ou EMAIL_HOST_PASSWORD non configuré')
+        
+        return Response(result)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Erreur lors du test: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

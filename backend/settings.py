@@ -17,8 +17,12 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file
+"""Load environment variables.
+First try project root .env (BASE_DIR/.env), then ensure backend/.env is also loaded.
+This fixes cases where EMAIL_HOST_USER was None because .env resides in backend/.
+"""
 load_dotenv(BASE_DIR / '.env')
+load_dotenv(Path(__file__).resolve().parent / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -127,9 +131,15 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+EMAIL_TIMEOUT = 30
+
+# Configuration pour les applications moins sécurisées Gmail
+# Assurez-vous d'activer "Accès aux applications moins sécurisées" dans les paramètres Gmail
+# Ou utiliser un mot de passe d'application si l'authentification à deux facteurs est activée
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

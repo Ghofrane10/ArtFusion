@@ -138,7 +138,7 @@ class Event(models.Model):
 class Artwork(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
-    quantity_available = models.PositiveIntegerField(default=1)
+    quantity_available = models.PositiveIntegerField(default=1, validators=[lambda x: x >= 0])
     quantity_initial = models.PositiveIntegerField(default=1)  # Quantité initiale sauvegardée
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     image = models.ImageField(upload_to='artworks/', blank=True, null=True)

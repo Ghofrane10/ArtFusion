@@ -244,34 +244,25 @@ function App() {
     }
   };
 
-  // Fonction pour générer une description poétique avec Groq
+  // Fonction pour générer une description poétique via le backend
   const generatePoeticDescription = async (title: string) => {
     try {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const response = await fetch("http://127.0.0.1:8000/api/ai/generate-event-description/", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer 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`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [
-            {
-              role: "user",
-              content: `Génère une description poétique et inspirante en français pour un événement artistique intitulé "${title}". La description doit être élégante, évocatrice et encourager la participation. Maximum 150 mots.`
-            }
-          ],
-          max_tokens: 200,
-          temperature: 0.7,
+          title: title
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        return data.choices[0].message.content.trim();
+        return data.description || "";
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error("Erreur API Groq:", response.status, errorData);
+        console.error("Erreur API backend:", response.status, errorData);
         return "";
       }
     } catch (error) {
@@ -280,35 +271,33 @@ function App() {
     }
   };
 
-  // Fonction pour générer un résumé encourageant pour les ateliers
+  // Fonction pour générer un résumé encourageant pour les ateliers via le backend
   const generateWorkshopSummary = async (workshop: Workshop) => {
     setGeneratingSummary(true);
     try {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const response = await fetch("http://127.0.0.1:8000/api/ai/generate-workshop-summary/", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer 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`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [
-            {
-              role: "user",
-              content: `Résume cet atelier artistique de manière engageante et encourageante en français. L'atelier s'intitule "${workshop.title}". Description: ${workshop.description}. Instructeur: ${workshop.instructor}. Niveau: ${workshop.level}. Durée: ${workshop.duration}. Lieu: ${workshop.location}. Prix: ${workshop.price}€. Matériel fourni: ${workshop.materials_provided}. Encourage l'utilisateur à participer et souligne les bénéfices artistiques. Maximum 200 mots.`
-            }
-          ],
-          max_tokens: 300,
-          temperature: 0.7,
+          title: workshop.title,
+          description: workshop.description,
+          instructor: workshop.instructor,
+          level: workshop.level,
+          duration: workshop.duration,
+          location: workshop.location,
+          price: workshop.price,
+          materials_provided: workshop.materials_provided
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setWorkshopSummary(data.choices[0].message.content.trim());
+        setWorkshopSummary(data.summary || "Erreur lors de la génération du résumé.");
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error("Erreur API Groq:", response.status, errorData);
+        console.error("Erreur API backend:", response.status, errorData);
         setWorkshopSummary("Erreur lors de la génération du résumé. Veuillez réessayer.");
       }
     } catch (error) {
