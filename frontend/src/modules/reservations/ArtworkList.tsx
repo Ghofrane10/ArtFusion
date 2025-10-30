@@ -5,13 +5,14 @@ interface ArtworkListProps {
   onReserve: (artwork: Artwork) => void;
   onEdit: (artwork: Artwork) => void;
   onDelete: (artworkId: number) => void;
+  onAnalyzeColors?: (artwork: Artwork) => void;
 }
 
 export interface ArtworkListRef {
   refresh: () => void;
 }
 
-const ArtworkList = forwardRef<ArtworkListRef, ArtworkListProps>(({ onReserve, onEdit, onDelete }, ref) => {
+const ArtworkList = forwardRef<ArtworkListRef, ArtworkListProps>(({ onReserve, onEdit, onDelete, onAnalyzeColors }, ref) => {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,6 +73,34 @@ const ArtworkList = forwardRef<ArtworkListRef, ArtworkListProps>(({ onReserve, o
                 <span>{artwork.price} €</span>
               </div>
             </div>
+
+            {/* Color Palette Display or Analyze Button */}
+            {artwork.color_palette && artwork.color_palette.length > 0 ? (
+              <div className="color-palette">
+                <div className="palette-colors">
+                  {artwork.color_palette.map((color, index) => (
+                    <div
+                      key={index}
+                      className="color-swatch"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                <span className="palette-label">Palette de couleurs</span>
+              </div>
+            ) : (
+              /* Analyze Colors Button */
+              <div className="color-analysis-section">
+                <button
+                  className="analyze-colors-button"
+                  onClick={() => onAnalyzeColors && onAnalyzeColors(artwork)}
+                  title="Analyser les couleurs dominantes de l'œuvre"
+                >
+                  🎨 Analyser les Couleurs
+                </button>
+              </div>
+            )}
             <div className="card-footer">
               <div className="card-actions">
                 <button
