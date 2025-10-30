@@ -23,6 +23,10 @@ urlpatterns = [
     # Œuvres et réservations
     path('artworks/', views.artwork_list_create, name='artwork-list-create'),
     path('artworks/<int:pk>/', views.artwork_detail, name='artwork-detail'),
+    path('artworks/<int:pk>/analyze/', views.analyze_artwork_colors, name='artwork-analyze-colors'),
     path('reservations/', views.reservation_list_create, name='reservation-list-create'),
     path('reservations/<int:pk>/', views.reservation_detail, name='reservation-detail'),
+
+    # Chatbot
+    path('chatbot/', views.ChatbotView.as_view(), name='chatbot'),
 ]

@@ -14,6 +14,8 @@ import LoginForm from "./modules/login/LoginForm";
 import SignupForm from "./modules/login/SignupForm";
 import ForgotPasswordForm from "./modules/login/ForgotPasswordForm";
 import ProfileMenu from "./components/ProfileMenu";
+import Chatbot from "./components/Chatbot";
+import ColorAnalysisModal from "./components/ColorAnalysisModal";
 
 interface Rating {
   id: number;
@@ -160,6 +162,10 @@ function App() {
   // Références pour rafraîchir les listes
   const artworkListRef = useRef<ArtworkListRef>(null);
   const reservationListRef = useRef<ReservationListRef>(null);
+
+  // États pour la modal d'analyse des couleurs
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
 
   useEffect(() => {
     fetchEvents();
@@ -437,8 +443,10 @@ function App() {
       });
 
       if (response.ok) {
+        const newArtwork = await response.json();
+        console.log("Artwork saved successfully with colors:", newArtwork);
         setShowArtworkForm(null);
-        // Rafraîchir la liste des œuvres après ajout/modification
+        // Refresh immediately since colors are processed in the API response
         artworkListRef.current?.refresh();
       } else {
         console.error("Erreur lors de la sauvegarde de l'œuvre");
@@ -575,6 +583,55 @@ function App() {
       }
     }
   };
+
+  // Gestionnaire pour l'analyse des couleurs
+  const handleAnalyzeColors = (artwork: Artwork) => {
+    setSelectedArtwork(artwork);
+    setShowColorModal(true);
+  };
+
+  const handleColorAnalysis = async (artworkId: number): Promise<string[]> => {
+    console.log('handleColorAnalysis called with artworkId:', artworkId);
+    try {
+      console.log('Making API call to:', `http://127.0.0.1:8000/api/artworks/${artworkId}/analyze/`);
+      const response = await fetch(`http://127.0.0.1:8000/api/artworks/${artworkId}/analyze/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('API response status:', response.status);
+      console.log('API response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Color analysis completed - full response:', data);
+        console.log('Color palette from response:', data.color_palette);
+        console.log('Type of color_palette:', typeof data.color_palette);
+        console.log('Length of color_palette:', data.color_palette ? data.color_palette.length : 'null/undefined');
+
+        // Refresh the artwork list to show the new colors
+        artworkListRef.current?.refresh();
+        return data.color_palette || [];
+      } else {
+        const errorText = await response.text();
+        console.error('Color analysis failed - raw response:', errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error('Color analysis failed - parsed error:', errorData);
+          throw new Error(errorData.error || 'Analysis failed');
+        } catch (parseError) {
+          console.error('Could not parse error response as JSON');
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error during color analysis:', error);
+      throw error;
+    }
+  };
+
 
   const handleLogout = () => {
     setUser(null);
@@ -1325,6 +1382,7 @@ function App() {
                       onReserve={(artwork) => setShowReservationForm(artwork)}
                       onEdit={handleArtworkEdit}
                       onDelete={handleArtworkDelete}
+                      onAnalyzeColors={handleAnalyzeColors}
                     />
                   </div>
                 </div>
@@ -1391,6 +1449,22 @@ function App() {
               </div>
             </div>
           </section>
+        )}
+
+        {/* Chatbot Component */}
+        <Chatbot />
+
+        {/* Color Analysis Modal */}
+        {showColorModal && selectedArtwork && (
+          <ColorAnalysisModal
+            artwork={selectedArtwork}
+            isOpen={showColorModal}
+            onClose={() => {
+              setShowColorModal(false);
+              setSelectedArtwork(null);
+            }}
+            onAnalyze={handleColorAnalysis}
+          />
         )}
 
         <section id="about" className="about-section">

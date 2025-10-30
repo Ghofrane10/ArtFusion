@@ -119,6 +119,7 @@ class Artwork(models.Model):
     quantity_initial = models.PositiveIntegerField(default=1)  # Quantité initiale sauvegardée
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     image = models.ImageField(upload_to='artworks/', blank=True, null=True)
+    color_palette = models.JSONField(blank=True, null=True)  # Store dominant colors as hex codes
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -129,7 +130,61 @@ class Artwork(models.Model):
         # Sauvegarder la quantité initiale lors de la première création
         if not self.pk:
             self.quantity_initial = self.quantity_available
+
+        # Extract dominant colors from image if not already done
+        if self.image and not self.color_palette:
+            try:
+                self.extract_dominant_colors()
+            except Exception as e:
+                print(f"Error extracting colors for {self.title}: {e}")
+
         super().save(*args, **kwargs)
+
+    def extract_dominant_colors(self, num_colors=5):
+        """Extract dominant colors from artwork image using K-means clustering"""
+        if not self.image:
+            return None
+
+        try:
+            from PIL import Image
+            import numpy as np
+            from sklearn.cluster import KMeans
+
+            # Open and process image
+            img = Image.open(self.image.path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # Resize for faster processing while maintaining aspect ratio
+            img.thumbnail((200, 200))
+
+            # Convert to numpy array and reshape
+            img_array = np.array(img)
+            pixels = img_array.reshape(-1, 3)
+
+            # Apply K-means clustering
+            kmeans = KMeans(n_clusters=num_colors, n_init=10, random_state=42)
+            kmeans.fit(pixels)
+
+            # Extract dominant colors
+            dominant_colors = kmeans.cluster_centers_.astype(int)
+
+            # Convert to hex format
+            hex_colors = []
+            for color in dominant_colors:
+                hex_color = '#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2])
+                hex_colors.append(hex_color)
+
+            # Store the palette
+            self.color_palette = hex_colors
+            print(f"Extracted dominant colors for {self.title}: {hex_colors}")
+            return hex_colors
+
+        except Exception as e:
+            print(f"Error extracting dominant colors: {e}")
+            self.color_palette = None
+            return None
+
 
     def update_available_quantity(self):
         """Recalcule la quantité disponible basée sur toutes les réservations (sauf cancelled)"""

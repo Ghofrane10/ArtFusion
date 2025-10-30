@@ -5,6 +5,7 @@ export interface Artwork {
   quantity_available: number;
   price: string;
   image: string | null;
+  color_palette: string[] | null;
   created_at: string;
 }
 
