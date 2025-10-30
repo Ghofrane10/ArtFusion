@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { ArtworkList, ArtworkCreate, ReservationList, ReservationCreate, Artwork, Reservation, ArtworkListRef, ReservationListRef } from './modules/reservations';
+import { ArtworkList, ArtworkCreate, ReservationList, ReservationCreate, CommentList, CommentCreate, Artwork, Reservation, Comment, ArtworkListRef, ReservationListRef, CommentListRef } from './modules/reservations';
 
 interface Rating {
   id: number;
@@ -88,9 +88,16 @@ function App() {
   const [showArtworkForm, setShowArtworkForm] = useState<Artwork | null>(null);
   const [showReservationForm, setShowReservationForm] = useState<Artwork | null>(null);
 
+  // États pour les commentaires
+  const [showCommentForm, setShowCommentForm] = useState<Comment | null>(null);
+
   // Références pour rafraîchir les listes
   const artworkListRef = useRef<ArtworkListRef>(null);
   const reservationListRef = useRef<ReservationListRef>(null);
+  const commentListRef = useRef<CommentListRef>(null);
+
+  // Référence pour le formulaire de commentaire
+  const commentFormRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchEvents();
@@ -473,6 +480,65 @@ function App() {
     }
   };
 
+  // Gestionnaires pour les commentaires
+  const handleCommentSave = async (commentData: {
+    content: string;
+    artwork: number;
+    sentiment: 'satisfied' | 'not_satisfied' | 'neutral';
+  }) => {
+    try {
+      const url = showCommentForm && showCommentForm.id
+        ? `http://127.0.0.1:8000/api/comments/${showCommentForm.id}/`
+        : 'http://127.0.0.1:8000/api/comments/';
+
+      const method = showCommentForm && showCommentForm.id ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(commentData),
+      });
+
+      if (response.ok) {
+        setShowCommentForm(null);
+        // Rafraîchir la liste des commentaires après ajout/modification
+        commentListRef.current?.refresh();
+      } else {
+        console.error('Erreur lors de la sauvegarde du commentaire');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleCommentEdit = (comment: Comment) => {
+    setShowCommentForm(comment);
+    // Faire défiler vers le formulaire de commentaire
+    setTimeout(() => {
+      commentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  const handleCommentDelete = async (commentId: number) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce commentaire ?')) {
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/comments/${commentId}/`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          // Rafraîchir la liste des commentaires après suppression
+          commentListRef.current?.refresh();
+        } else {
+          console.error('Erreur lors de la suppression');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
+    }
+  };
+
   if (loading) {
     return <div className="loading">Chargement...</div>;
   }
@@ -490,6 +556,7 @@ function App() {
             <li><a href="#workshops" className="nav-link">Ateliers</a></li>
             <li><a href="#oeuvres" className="nav-link">Oeuvre</a></li>
             <li><a href="#reservations" className="nav-link">Réservations</a></li>
+            <li><a href="#comments" className="nav-link" onClick={(e) => { e.preventDefault(); document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' }); }}>Commentaires</a></li>
             <li><a href="#about" className="nav-link">À propos</a></li>
           </ul>
         </nav>
@@ -995,6 +1062,47 @@ function App() {
           </div>
         </section>
 
+        <section id="comments" className="comments-section">
+          <div className="container">
+            <div className="section-header">
+              <div className="section-title">
+                <h2>Commentaires</h2>
+                <p>Gérez les commentaires sur les œuvres d'art</p>
+              </div>
+              <button
+                className="add-button primary"
+                onClick={() => setShowCommentForm({} as Comment)}
+              >
+                + Ajouter un commentaire
+              </button>
+            </div>
+
+            {showCommentForm && (
+              <div ref={commentFormRef}>
+                <CommentCreate
+                  comment={showCommentForm.id ? showCommentForm : undefined}
+                  onSave={handleCommentSave}
+                  onCancel={() => setShowCommentForm(null)}
+                />
+              </div>
+            )}
+
+            <div className="comments-management">
+              <div className="management-section">
+                <div className="section-header">
+                  <h3>Liste des Commentaires</h3>
+                </div>
+
+                <CommentList
+                  ref={commentListRef}
+                  onEdit={handleCommentEdit}
+                  onDelete={handleCommentDelete}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="about" className="about-section">
           <div className="container">
             <div className="about-content">
@@ -1037,6 +1145,7 @@ function App() {
                   <li><a href="#workshops">Ateliers</a></li>
                   <li><a href="#oeuvres">Oeuvre</a></li>
                   <li><a href="#reservations">Réservations</a></li>
+                  <li><a href="#comments">Commentaires</a></li>
                   <li><a href="#about">À propos</a></li>
                 </ul>
               </div>

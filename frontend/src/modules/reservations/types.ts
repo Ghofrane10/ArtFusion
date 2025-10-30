@@ -20,3 +20,15 @@ export interface Reservation {
   created_at: string;
   notes?: string;
 }
+
+export interface Comment {
+  id: number;
+  content: string;
+  artwork: Artwork;
+  sentiment: 'satisfied' | 'not_satisfied' | 'neutral';
+  created_at: string;
+  likes: number;
+  dislikes: number;
+  moderation_status: 'pending' | 'approved' | 'rejected' | 'flagged';
+  moderation_reason?: string;
+}

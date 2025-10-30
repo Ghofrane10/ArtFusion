@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Event, Workshop, Rating, Artwork, Reservation
+from .models import Event, Workshop, Rating, Artwork, Reservation, Comment
 
 class RatingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,3 +40,20 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reservation
         fields = ['artwork', 'full_name', 'email', 'phone', 'address', 'quantity', 'notes']
+
+class CommentSerializer(serializers.ModelSerializer):
+    artwork = ArtworkSerializer(read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = '__all__'
+
+class CommentModerationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ['moderation_status', 'moderation_reason']
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ['content', 'artwork', 'sentiment']

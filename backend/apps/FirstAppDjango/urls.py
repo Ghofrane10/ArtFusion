@@ -16,4 +16,11 @@ urlpatterns = [
     path('artworks/<int:pk>/', views.artwork_detail, name='artwork-detail'),
     path('reservations/', views.reservation_list_create, name='reservation-list-create'),
     path('reservations/<int:pk>/', views.reservation_detail, name='reservation-detail'),
+
+    # Commentaires
+    path('comments/', views.comment_list_create, name='comment-list-create'),
+    path('comments/<int:pk>/', views.comment_detail, name='comment-detail'),
+    path('comments/<int:pk>/moderate/', views.comment_moderate, name='comment-moderate'),
+    path('comments/<int:pk>/update-moderation/', views.comment_update_moderation, name='comment-update-moderation'),
+    path('comments/check-moderation/', views.comment_check_moderation, name='comment-check-moderation'),
 ]
